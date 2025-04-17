@@ -230,14 +230,8 @@ modules for building a Wayland compositor.")
      (list pkg-config))
     (inputs
      (list wlroots))
-    (home-page "https://codeberg.org/dwl/dwl")
+    (home-page "https://github.com/DreamMaoMao/maomaowm")
     (synopsis "Dynamic window manager for Wayland")
     (description
-     "@command{dwl} is a compact, hackable compositor for Wayland based on
-wlroots.  It is intended to fill the same space in the Wayland world that dwm
-does in X11, primarily in terms of philosophy, and secondarily in terms of
-functionality.  Like dwm, dwl is easy to understand and hack on, due to a
-limited size and a few external dependencies.  It is configurable via
-@file{config.h}.")
-    ;;             LICENSE       LICENSE.dwm   LICENSE.tinywl
-    (license (list license:gpl3+ license:expat license:cc0))))
+     "This project is developed based on dwl, it is basically compatible with all dwm features. In addition, it is added many operation that supported in hyprland")
+    (license license:expat)))  ; MIT license
