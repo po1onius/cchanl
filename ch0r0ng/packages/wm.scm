@@ -97,7 +97,7 @@
 (define-public wayland-protocols
   (package
     (name "wayland-protocols")
-    (version "1.43")
+    (version "1.45")
     (source (origin
               (method git-fetch)
               (uri (git-reference
@@ -106,7 +106,7 @@
               (file-name (git-file-name name version))
               (sha256
                (base32
-                "1pgjkc0gw11xb55kn8hf8adnmx3bkpgb4p0haylb2jh7irqhxhqd"))))
+                "1d2fv41vq75pvgkd3ykjypnp8zv0afv71p36cd91h19lbmwaia8h"))))
     (build-system meson-build-system)
     (inputs
      (list wayland))
@@ -128,7 +128,7 @@ protocol either in Wayland core, or some other protocol in wayland-protocols.")
 (define-public pixman
   (package
     (name "pixman")
-    (version "0.44.0")
+    (version "0.46.4")
     (source
      (origin
        (method url-fetch)
@@ -137,7 +137,7 @@ protocol either in Wayland core, or some other protocol in wayland-protocols.")
          "https://www.cairographics.org/releases/pixman-"
          version ".tar.gz"))
        (sha256
-        (base32 "1b3xib3zwf8p5qmnkmr76zzf1zdg5v5h50khzvgj62sywkhw3949"))))
+        (base32 "072rd8sd454rzybmxx90fdzvabzvx0pr57y745qfwnxxqgml976h"))))
     (build-system meson-build-system)
     (native-inputs
      (list pkg-config))
@@ -151,10 +151,40 @@ rasterisation.")
     (license license:expat)))
 
 
+(define-public scenefx
+  (package
+    (name "scenefx")
+    (version "0.4.1")
+    (source (origin
+              (method git-fetch)
+              (uri (git-reference
+                    (url "https://github.com/wlrfx/scenefx")
+                    (commit version)))
+              (file-name (git-file-name name version))
+              (sha256
+               (base32
+                "10f4rygnb8qrlcxw6f3gpl4xa20wrykx63cvn8wih74smdr48gjw"))))
+    (build-system meson-build-system)
+    (native-inputs (list pkg-config
+                         ;; for wayland-scanner.
+                         wayland))
+    (inputs (list pixman
+                  mesa
+                  libxkbcommon
+                  libdrm
+                  wlroots))
+    (home-page "https://github.com/wlrfx/scenefx")
+    (synopsis "Drop-in replacement for the wlroots scene API")
+    (description
+     "A drop-in replacement for the wlroots scene API that allows wayland
+compositors to render surfaces with eye-candy effects.")
+    (license license:expat)))
+
+
 (define-public wlroots
   (package
     (name "wlroots")
-    (version "0.19.0-rc1")
+    (version "0.19.0")
     (source
      (origin
        (method git-fetch)
@@ -163,7 +193,7 @@ rasterisation.")
              (commit version)))
        (file-name (git-file-name name version))
        (sha256
-        (base32 "0a3hc0f8722q3x7vjsdx8yd38x7d304hrswl857d1c1syrzy1p5k"))))
+        (base32 "1fa4gi2c6iil4k0xmqf2jx1apqg3pk0r4lrf23blpfiz439zkk13"))))
     (build-system meson-build-system)
     (arguments
      (list #:phases
@@ -216,7 +246,7 @@ modules for building a Wayland compositor.")
 (define-public maomaowm
   (package
     (name "maomaowm")
-    (version "0.4.1")
+    (version "0.7.3")
     (source (origin
               (method url-fetch)
               ;https://github.com/DreamMaoMao/maomaowm/archive/refs/tags/0.4.1.tar.gz
@@ -224,12 +254,12 @@ modules for building a Wayland compositor.")
                                   version ".tar.gz"))
               (sha256
                (base32
-                "007fny3dj0sxfxvd5c7jmi56cdfd2zv753pzhmxn3c9pi7nvhnlf"))))
+                "08s51fmv8ypn7jp1hrmnfxgw6mihgzcngxifh4h09915gpkg13sl"))))
     (build-system meson-build-system)
     (native-inputs
      (list pkg-config))
     (inputs
-     (list wlroots))
+     (list wlroots pcre2 scenefx))
     (home-page "https://github.com/DreamMaoMao/maomaowm")
     (synopsis "Dynamic window manager for Wayland")
     (description
