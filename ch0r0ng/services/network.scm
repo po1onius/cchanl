@@ -4,7 +4,7 @@
 #:use-module (gnu services)
 #:use-module (gnu home services shepherd)
 #:use-module        (gnu services configuration)
-#:use-module 	     (ch0r0ng packages network)
+#:use-module 	     (rosenthal packages networking)
 
 #:export (home-clash-configuration
           home-clash-service-type))
