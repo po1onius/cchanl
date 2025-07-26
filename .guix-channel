@@ -1,4 +1,5 @@
 (channel
  (version 0)
  (directory "modules")
- (url "https://codeberg.org/guixcn/guix-channel.git"))
+ (branch "trunk")
+ (url "https://codeberg.org/hako/rosenthal.git"))
