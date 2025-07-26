@@ -2,6 +2,5 @@
  (version 0)
  (dependencies
   (channel
-   (name "rosenthal")
    (url "https://codeberg.org/hako/rosenthal.git")
    (branch "trunk"))))
