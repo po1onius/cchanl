@@ -8,8 +8,8 @@
 	#:use-module     (gnu services)
 	#:use-module     (rosenthal packages binaries)
 
-#:export (home-clash-service-type
-          home-clash-configuration))
+#:export (home-clash-configuration
+          home-clash-service-type))
 
 
 (define-configuration home-clash-configuration
