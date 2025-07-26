@@ -1,5 +1,0 @@
-(channel
- (version 0)
- (directory "modules")
- (branch "trunk")
- (url "https://codeberg.org/hako/rosenthal.git"))
