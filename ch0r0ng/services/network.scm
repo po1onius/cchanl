@@ -1,12 +1,10 @@
 (define-module (ch0r0ng services network)
-  #:use-module     (gnu home)
-	#:use-module     (gnu home services)
-	#:use-module     (gnu services configuration)
-	#:use-module     (gnu home services shepherd)
-	#:use-module     (guix gexp)
-	#:use-module     (guix records)
-	#:use-module     (gnu services)
-	#:use-module     (rosenthal packages binaries)
+#:use-module (guix gexp)
+#:use-module (guix records)
+#:use-module (gnu services)
+#:use-module (gnu home services shepherd)
+#:use-module        (gnu services configuration)
+#:use-module 	     (rosenthal packages binaries))
 
 #:export (home-clash-configuration
           home-clash-service-type))
