@@ -12,7 +12,7 @@
     (version "0.1")
     (source #f) ; 无源码，仅生成符号链接
     (build-system trivial-build-system)
-    (inputs `(("gcc" ,gcc))) ; 依赖 GCC 包
+    (propagated-inputs `(("gcc" ,gcc))) ; 依赖 GCC 包
     (arguments
      `(#:modules ((guix build utils))
        #:builder
