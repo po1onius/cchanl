@@ -243,28 +243,30 @@ modules for building a Wayland compositor.")
    (license license:expat)))  ; MIT license
 
 
-(define-public maomaowm
-  (package
-   (name "maomaowm")
-   (version "0.7.3")
-   (source (origin
-            (method url-fetch)
-					;https://github.com/DreamMaoMao/maomaowm/archive/refs/tags/0.4.1.tar.gz
-            (uri (string-append "https://github.com/DreamMaoMao/maomaowm/archive/refs/tags/"
-                                version ".tar.gz"))
-            (sha256
-             (base32
-              "08s51fmv8ypn7jp1hrmnfxgw6mihgzcngxifh4h09915gpkg13sl"))))
-   (build-system meson-build-system)
-   (native-inputs
-    (list pkg-config))
-   (inputs
-    (list wlroots pcre2 scenefx))
-   (home-page "https://github.com/DreamMaoMao/maomaowm")
-   (synopsis "Dynamic window manager for Wayland")
-   (description
-    "This project is developed based on dwl, it is basically compatible with all dwm features. In addition, it is added many operation that supported in hyprland")
-   (license license:expat)))  ; MIT license
+(define-public maomaowm-git
+  (let ((commit "6d08d4ca54985e20c010645734adbbf9d7a3e15d")
+        (revision "0"))
+    (package
+     (name "maomaowm-git")
+     (version (git-version "0" revision commit))
+     (source (origin
+              (method git-fetch)
+              (uri (git-reference
+                    (url "https://github.com/DreamMaoMao/maomaowm")
+                    (commit commit)))
+              (sha256
+               (base32
+		"1wy9jwrzdbpx9cqyylp637bdbfhhwgimkvvaq234xx2vvph3f3g9"))))
+     (build-system meson-build-system)
+     (native-inputs
+      (list pkg-config))
+     (inputs
+      (list wlroots pcre2 scenefx))
+     (home-page "https://github.com/DreamMaoMao/maomaowm")
+     (synopsis "Dynamic window manager for Wayland")
+     (description
+      "This project is developed based on dwl, it is basically compatible with all dwm features. In addition, it is added many operation that supported in hyprland")
+     (license license:expat))))
 
 
 (define-public waybar-git
