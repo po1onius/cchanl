@@ -20,7 +20,7 @@
    "config path")
   (no-serialization))
 
-(define clash-shepherd-service
+(define ch0r0ng-clash-shepherd-service
   (match-record-lambda
    <home-clash-configuration>
    (clash config-path)
@@ -47,6 +47,6 @@
    (extensions
     (list (service-extension
 	   home-shepherd-service-type
-	   clash-shepherd-service)))
+	   ch0r0ng-clash-shepherd-service)))
    (description "clash service")
    (default-value (home-clash-configuration))))
