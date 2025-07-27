@@ -244,7 +244,7 @@ modules for building a Wayland compositor.")
 
 
 (define-public maomaowm-git
-  (let ((commit "6d08d4ca54985e20c010645734adbbf9d7a3e15d")
+  (let ((commit "f19790de45122da3ccb01943b96207d70e8baada")
         (revision "0"))
     (package
      (name "maomaowm-git")
@@ -256,7 +256,7 @@ modules for building a Wayland compositor.")
                     (commit commit)))
               (sha256
                (base32
-		"1wy9jwrzdbpx9cqyylp637bdbfhhwgimkvvaq234xx2vvph3f3g9"))))
+		"18ggxxwkkkkzhlrv5sf442g8rhvmc4m3wbmlri4ir84zg4h0k8d1"))))
      (build-system meson-build-system)
      (native-inputs
       (list pkg-config))
