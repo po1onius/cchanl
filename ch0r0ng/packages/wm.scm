@@ -243,26 +243,26 @@ modules for building a Wayland compositor.")
    (license license:expat)))  ; MIT license
 
 
-(define-public maomaowm-git
-  (let ((commit "f19790de45122da3ccb01943b96207d70e8baada")
+(define-public mango-git
+  (let ((commit "c19fe0df8c23fe3b3e59e3231f1428acfd90ab4a")
         (revision "0"))
     (package
-     (name "maomaowm-git")
+     (name "mango-git")
      (version (git-version "0" revision commit))
      (source (origin
               (method git-fetch)
               (uri (git-reference
-                    (url "https://github.com/DreamMaoMao/maomaowm")
+                    (url "https://github.com/DreamMaoMao/mango")
                     (commit commit)))
               (sha256
                (base32
-		"18ggxxwkkkkzhlrv5sf442g8rhvmc4m3wbmlri4ir84zg4h0k8d1"))))
+		"1vym56gvbkwz8k21hayqc1na2bj2nmsl92iv4h5vr37l3mb4vyrh"))))
      (build-system meson-build-system)
      (native-inputs
       (list pkg-config))
      (inputs
       (list wlroots pcre2 scenefx))
-     (home-page "https://github.com/DreamMaoMao/maomaowm")
+     (home-page "https://github.com/DreamMaoMao/mango")
      (synopsis "Dynamic window manager for Wayland")
      (description
       "This project is developed based on dwl, it is basically compatible with all dwm features. In addition, it is added many operation that supported in hyprland")
