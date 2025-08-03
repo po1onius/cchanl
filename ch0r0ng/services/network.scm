@@ -29,15 +29,15 @@
      (provision (list 'clash))
      (start
       #~(make-forkexec-constructor
-	 (list
-	  (let ((mihomo-cmd
-		 #$(file-append clash "/bin/mihomo"))
-		(clash-cmd
-		 #$(file-append clash "/bin/clash")))
-	    (if (file-exists? mihomo-cmd)
-		mihomo-cmd
-		clash-cmd))
-	  "-d" #$config-path)))
+         (list
+          (let ((mihomo-cmd
+                 #$(file-append clash "/bin/mihomo"))
+                (clash-cmd
+                 #$(file-append clash "/bin/clash")))
+            (if (file-exists? mihomo-cmd)
+                mihomo-cmd
+                clash-cmd))
+          "-d" #$config-path)))
      (stop #~(make-kill-destructor))))))
 
 (define home-clash-service-type
@@ -45,7 +45,7 @@
    (name 'clash)
    (extensions
     (list (service-extension
-	   home-shepherd-service-type
-	   clash-shepherd-service)))
+           home-shepherd-service-type
+           clash-shepherd-service)))
    (description "clash service")
    (default-value (home-clash-configuration))))

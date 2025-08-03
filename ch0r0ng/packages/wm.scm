@@ -198,17 +198,17 @@ compositors to render surfaces with eye-candy effects.")
    (arguments
     (list #:phases
           #~(modify-phases %standard-phases
-			   (add-before 'configure 'hardcode-paths
-				       (lambda* (#:key inputs #:allow-other-keys)
-						(substitute* "xwayland/server.c"
-							     (("Xwayland")
-							      (search-input-file inputs "bin/Xwayland")))))
-			   (add-before 'configure 'fix-meson-file
-				       (lambda* (#:key native-inputs inputs #:allow-other-keys)
-						(substitute* "backend/drm/meson.build"
-							     (("/usr/share/hwdata/pnp.ids")
-							      (search-input-file
-							       (or native-inputs inputs) "share/hwdata/pnp.ids"))))))))
+                           (add-before 'configure 'hardcode-paths
+                                       (lambda* (#:key inputs #:allow-other-keys)
+                                                (substitute* "xwayland/server.c"
+                                                             (("Xwayland")
+                                                              (search-input-file inputs "bin/Xwayland")))))
+                           (add-before 'configure 'fix-meson-file
+                                       (lambda* (#:key native-inputs inputs #:allow-other-keys)
+                                                (substitute* "backend/drm/meson.build"
+                                                             (("/usr/share/hwdata/pnp.ids")
+                                                              (search-input-file
+                                                               (or native-inputs inputs) "share/hwdata/pnp.ids"))))))))
    (propagated-inputs
     (list ;; As required by wlroots.pc.
      eudev
@@ -256,7 +256,7 @@ modules for building a Wayland compositor.")
                     (commit commit)))
               (sha256
                (base32
-		"02xd7rx8gfnkn1zqsx782hxp930k5h10v7j4rmw75jxd4qfnr025"))))
+                "02xd7rx8gfnkn1zqsx782hxp930k5h10v7j4rmw75jxd4qfnr025"))))
      (build-system meson-build-system)
      (native-inputs
       (list pkg-config))
