@@ -244,7 +244,7 @@ modules for building a Wayland compositor.")
 
 
 (define-public mangowc-git
-  (let ((commit "3bf524929b22bbe77d224439ece7bdabe82f8067")
+  (let ((commit "47809c57834677da09ddf7362d1d8b22cb7c340e")
         (revision "0"))
     (package
      (name "mangowc-git")
@@ -256,7 +256,7 @@ modules for building a Wayland compositor.")
                     (commit commit)))
               (sha256
                (base32
-                "02xd7rx8gfnkn1zqsx782hxp930k5h10v7j4rmw75jxd4qfnr025"))))
+                "0irrqihpp07m7nislf5x39szrf8vgcrhdqw6kipl97c1668xrmni"))))
      (build-system meson-build-system)
      (native-inputs
       (list pkg-config))
