@@ -57,7 +57,7 @@
       "Specific license information is embedded in the font files."))))
 
 
-(define-public font-apple-sf-mono
+(define-public font-sf-mono
   (apple-font
    #:font-name "SF Mono"
    #:archive-timestamp "20240527221346"
