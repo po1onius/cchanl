@@ -8,6 +8,7 @@
   #:use-module (gnu home services shepherd)
   #:use-module (gnu services configuration)
   #:use-module (rosenthal packages networking)
+  #:use-module (ch0r0ng packages networking)
   #:export (home-clash-configuration
             home-clash-service-type
             dae-service-configuration
