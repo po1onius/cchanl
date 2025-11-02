@@ -26,7 +26,7 @@
    (file-like mihomo)
    "The clash package.")
   (config-path
-   (string ".config/clash")
+   (string "~/.config/clash")
    "config path")
   (no-serialization))
 
@@ -67,7 +67,7 @@
    (file-like dae-bin)
    "dae package to be used")
   (config-file
-   (file-object "")
+   (file-object "~/.config/dae/config.dae")
    "dae configuration")
   (assets-path
    (string "")
