@@ -1,4 +1,4 @@
-(define-module (ch0r0ng services network)
+(define-module (ch0r0ng services networking)
   #:use-module (guix gexp)
   #:use-module (guix records)
   #:use-module (gnu services)
