@@ -1,6 +1,8 @@
 (define-module (ch0r0ng services networking)
   #:use-module (guix gexp)
   #:use-module (guix records)
+  ;#:use-module (gnu)
+  ;#:use-module (guix)
   #:use-module (gnu services)
   #:use-module (gnu services base)
   #:use-module (gnu services shepherd)
@@ -65,7 +67,7 @@
    (file-like dae-bin)
    "dae package to be used")
   (config-file
-   file-object
+   (file-object "")
    "dae configuration")
   (assets-path
    (string "")
@@ -130,5 +132,33 @@
                               dae-shepherd-service)
            (service-extension file-system-service-type
                               (const (list bpf-file-system)))))
+    (default-value (dae-service-configuration))
     (description "Service for dae, a proxy solution using eBPF.")))
 
+
+
+;(operating-system
+; (host-name "test")
+; (bootloader
+;  (bootloader-configuration
+;   (bootloader grub-efi-bootloader)
+;   (targets (list "/boot"))
+;   (keyboard-layout keyboard-layout)))
+; (services
+;   (cons (service
+;          dae-service-type)
+;         %base-services))
+; (file-systems
+;  (append
+;   (list
+;    (file-system
+;     (mount-point "/boot")
+;     (device (uuid "EF9B-4D6D"
+;                   'fat32))
+;     (type "vfat"))
+;    (file-system
+;     (mount-point "/")
+;     (device (uuid
+;              "6324f9fd-e555-49be-8f7b-8950349fecd8"
+;              'ext4))
+;     (type "ext4"))) %base-file-systems)))
