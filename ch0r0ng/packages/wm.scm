@@ -90,157 +90,8 @@
   #:use-module (gnu packages xorg))
 
 
-(define-public wayland-protocols
-  (package
-   (name "wayland-protocols")
-   (version "1.45")
-   (source (origin
-            (method git-fetch)
-            (uri (git-reference
-                  (url "https://gitlab.freedesktop.org/wayland/wayland-protocols")
-                  (commit version)))
-            (file-name (git-file-name name version))
-            (sha256
-             (base32
-              "1d2fv41vq75pvgkd3ykjypnp8zv0afv71p36cd91h19lbmwaia8h"))))
-   (build-system meson-build-system)
-   (inputs
-    (list wayland))
-   (native-inputs (cons* pkg-config python
-                         (if (%current-target-system)
-                             (list pkg-config-for-build
-                                   wayland) ; for wayland-scanner
-                             '())))
-   (synopsis "Wayland protocols")
-   (description "Wayland-Protocols contains Wayland protocols that add
-functionality not available in the Wayland core protocol.  Such protocols either
-add completely new functionality, or extend the functionality of some other
-protocol either in Wayland core, or some other protocol in wayland-protocols.")
-   (home-page "https://wayland.freedesktop.org")
-   (license license:expat)))
-
-
-
-(define-public pixman
-  (package
-   (name "pixman")
-   (version "0.46.4")
-   (source
-    (origin
-     (method url-fetch)
-     (uri
-      (string-append
-       "https://www.cairographics.org/releases/pixman-"
-       version ".tar.gz"))
-     (sha256
-      (base32 "072rd8sd454rzybmxx90fdzvabzvx0pr57y745qfwnxxqgml976h"))))
-   (build-system meson-build-system)
-   (native-inputs
-    (list pkg-config))
-   (inputs
-    (list libpng zlib))
-   (synopsis "Low-level pixel manipulation library")
-   (description "Pixman is a low-level software library for pixel
-manipulation, providing features such as image compositing and trapezoid
-rasterisation.")
-   (home-page "http://www.pixman.org/")
-   (license license:expat)))
-
-
-(define-public scenefx
-  (package
-   (name "scenefx")
-   (version "0.4.1")
-   (source (origin
-            (method git-fetch)
-            (uri (git-reference
-                  (url "https://github.com/wlrfx/scenefx")
-                  (commit version)))
-            (file-name (git-file-name name version))
-            (sha256
-             (base32
-              "10f4rygnb8qrlcxw6f3gpl4xa20wrykx63cvn8wih74smdr48gjw"))))
-   (build-system meson-build-system)
-   (native-inputs (list pkg-config
-                        ;; for wayland-scanner.
-                        wayland))
-   (inputs (list pixman
-                 mesa
-                 libxkbcommon
-                 libdrm
-                 wlroots))
-   (home-page "https://github.com/wlrfx/scenefx")
-   (synopsis "Drop-in replacement for the wlroots scene API")
-   (description
-    "A drop-in replacement for the wlroots scene API that allows wayland
-compositors to render surfaces with eye-candy effects.")
-   (license license:expat)))
-
-
-(define-public wlroots
-  (package
-   (name "wlroots")
-   (version "0.19.0")
-   (source
-    (origin
-     (method git-fetch)
-     (uri (git-reference
-           (url "https://gitlab.freedesktop.org/wlroots/wlroots")
-           (commit version)))
-     (file-name (git-file-name name version))
-     (sha256
-      (base32 "1fa4gi2c6iil4k0xmqf2jx1apqg3pk0r4lrf23blpfiz439zkk13"))))
-   (build-system meson-build-system)
-   (arguments
-    (list #:phases
-          #~(modify-phases %standard-phases
-                           (add-before 'configure 'hardcode-paths
-                                       (lambda* (#:key inputs #:allow-other-keys)
-                                                (substitute* "xwayland/server.c"
-                                                             (("Xwayland")
-                                                              (search-input-file inputs "bin/Xwayland")))))
-                           (add-before 'configure 'fix-meson-file
-                                       (lambda* (#:key native-inputs inputs #:allow-other-keys)
-                                                (substitute* "backend/drm/meson.build"
-                                                             (("/usr/share/hwdata/pnp.ids")
-                                                              (search-input-file
-                                                               (or native-inputs inputs) "share/hwdata/pnp.ids"))))))))
-   (propagated-inputs
-    (list ;; As required by wlroots.pc.
-     eudev
-     libdisplay-info
-     libinput-minimal
-     libxkbcommon
-     mesa
-     pixman
-     lcms
-     libseat
-     vulkan-headers
-     vulkan-loader
-     wayland
-     wayland-protocols
-     xcb-util-errors
-     xcb-util-wm
-     xorg-server-xwayland))
-   (native-inputs
-    (cons*
-     glslang
-     hwdata
-     pkg-config
-     wayland
-     (if (%current-target-system)
-         (list pkg-config-for-build)
-         '())))
-   (home-page "https://gitlab.freedesktop.org/wlroots/wlroots/")
-   (synopsis "Pluggable, composable, unopinionated modules for building a
-Wayland compositor")
-   (description "wlroots is a set of pluggable, composable, unopinionated
-modules for building a Wayland compositor.")
-   (license license:expat)))  ; MIT license
-
-
 (define-public mangowc-git
-  (let ((commit "47809c57834677da09ddf7362d1d8b22cb7c340e")
+  (let ((commit "69e2e22f0330f75d51c40ef8fada0b777b68d05f")
         (revision "0"))
     (package
      (name "mangowc-git")
@@ -252,7 +103,7 @@ modules for building a Wayland compositor.")
                     (commit commit)))
               (sha256
                (base32
-                "0irrqihpp07m7nislf5x39szrf8vgcrhdqw6kipl97c1668xrmni"))))
+                "0cplyq0i93vvjdby3arg5h99jdlc6v1n9igkwb4ifj40629hkcv9"))))
      (build-system meson-build-system)
      (native-inputs
       (list pkg-config))
