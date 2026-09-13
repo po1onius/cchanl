@@ -27,7 +27,7 @@
                ("geoip.dat" "share/dae/")
                ("geosite.dat" "share/dae/"))))
     (supported-systems '("x86_64-linux"))
-    (home-page "https://https://github.com/daeuniverse/dae/")
+    (home-page "https://github.com/daeuniverse/dae/")
     (synopsis "eBPF-powered transparent proxy solution")
     (description
      "dae, means goose, is a high-performance transparent proxy solution using eBPF.")

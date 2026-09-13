@@ -1,10 +1,2 @@
 (channel
- (version 0)
- (dependencies
-  (channel
-   (name rosenthal)
-   (url "https://codeberg.org/hako/rosenthal.git")
-   (branch "trunk"))
-  (channel
-   (name nonguix)
-   (url "https://gitlab.com/nonguix/nonguix"))))
+ (version 0))
