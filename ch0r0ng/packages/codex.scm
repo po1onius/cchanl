@@ -1,4 +1,4 @@
-;;; Codex CLI built from the upstream release and its locked Rust dependencies.
+;;; Source-built and prebuilt Codex CLI packages.
 (define-module (ch0r0ng packages codex)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix packages)
@@ -8,14 +8,19 @@
   #:use-module (guix utils)
   #:use-module (guix base16)
   #:use-module (guix build-system cargo)
+  #:use-module (guix build-system copy)
   #:use-module (guix build-system gnu)
   #:use-module (guix build-system trivial)
+  #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
+  #:use-module (gnu packages bootstrap)
   #:use-module (gnu packages cmake)
   #:use-module (gnu packages compression)
+  #:use-module (gnu packages elf)
   #:use-module (gnu packages gstreamer)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages llvm)
+  #:use-module (gnu packages ncurses)
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages protobuf)
   #:use-module (gnu packages python)
@@ -225,4 +230,90 @@ Codex release, with the configuration used by its standalone bwrap helper.")
                             (string-append #$output "/share/doc")))))
     (native-inputs '())
     (inputs (list %codex-rust %codex-bwrap))
+    (license (list license:asl2.0 license:lgpl2.0+))))
+
+;;; Repackage the complete upstream binary distribution, including its helpers.
+(define %codex-bin-tinfo
+  ;; Upstream zsh requires NCURSES6_TINFO_5.0.19991023.  Guix's regular
+  ;; ncurses-with-tinfo exports unversioned symbols, which causes loader warnings.
+  (package
+    (inherit ncurses/tinfo)
+    (name "codex-bin-ncurses-with-tinfo")
+    (arguments
+     (substitute-keyword-arguments (package-arguments ncurses/tinfo)
+       ((#:configure-flags flags)
+        #~(cons "--with-versioned-syms" #$flags))))))
+
+(define-public codex-bin
+  (package
+    (name "codex-bin")
+    (version "0.154.0")
+    (source
+     (origin
+       (method url-fetch)
+       (uri (string-append
+             "https://github.com/openai/codex/releases/download/rust-v"
+             version "/codex-package-"
+             (if (string-prefix? "aarch64" (%current-system))
+                 "aarch64" "x86_64")
+             "-unknown-linux-musl.tar.gz"))
+       (file-name (string-append name "-" version "-" (%current-system)
+                                 ".tar.gz"))
+       ;; Published in the release's codex-package_SHA256SUMS.
+       (sha256
+        (base16-string->bytevector
+         (if (string-prefix? "aarch64" (%current-system))
+             "97d93e11df72d3c26772db019e6ea8bb72c246500d46b98c760839f3240355e6"
+             "fc6e3e3b85f2cf7d664520ee5c66a7fe4aa12bae7d46834f47e2f165fd0d6f78")))))
+    (build-system copy-build-system)
+    (arguments
+     (list
+      #:strip-binaries? #f
+      #:install-plan #~'(("." "./"))
+      #:phases
+      #~(modify-phases %standard-phases
+          ;; The release has several top-level directories, not one source root.
+          (replace 'unpack
+            (lambda* (#:key source #:allow-other-keys)
+              (mkdir "source")
+              (chdir "source")
+              (invoke "tar" "xf" source)))
+          (add-after 'install 'patch-bundled-zsh
+            (lambda* (#:key inputs outputs #:allow-other-keys)
+              ;; The CLI and Rust helpers are static musl executables, but the
+              ;; bundled zsh uses glibc and the separate ncurses terminfo library.
+              (let ((zsh (string-append (assoc-ref outputs "out")
+                                       "/codex-resources/zsh/bin/zsh")))
+                (invoke "patchelf" "--set-interpreter"
+                        (search-input-file inputs #$(glibc-dynamic-linker)) zsh)
+                (invoke "patchelf" "--set-rpath"
+                        (string-append
+                         (dirname (search-input-file inputs "/lib/libc.so.6"))
+                         ":"
+                         (dirname (search-input-file inputs "/lib/libtinfo.so.6")))
+                        zsh))))
+          (add-after 'patch-bundled-zsh 'check-installed-programs
+            (lambda* (#:key outputs tests? #:allow-other-keys)
+              (when tests?
+                (let ((out (assoc-ref outputs "out")))
+                  (invoke (string-append out "/bin/codex") "--version")
+                  (invoke (string-append out "/bin/codex") "exec" "--help")
+                  (invoke (string-append out "/bin/codex-code-mode-host")
+                          "--help")
+                  (invoke (string-append out "/codex-resources/bwrap")
+                          "--version")
+                  (invoke (string-append out "/codex-path/rg") "--version")
+                  (invoke (string-append out "/codex-resources/zsh/bin/zsh")
+                          "-f" "-e" "-c"
+                          "[[ $((6 * 7)) = 42 ]]; print -r -- codex-zsh-ok"))))))))
+    (native-inputs (list patchelf))
+    (inputs (list glibc %codex-bin-tinfo))
+    (supported-systems '("x86_64-linux" "aarch64-linux"))
+    (home-page "https://github.com/openai/codex")
+    (synopsis "Prebuilt OpenAI coding agent for the terminal")
+    (description
+     "Codex CLI provides an interactive terminal interface and a non-interactive
+coding agent.  This package installs OpenAI's prebuilt release bundle, including
+the Code Mode host, ripgrep, bubblewrap, and zsh.  The application and its
+bundled libraries are not compiled from source by this package.")
     (license (list license:asl2.0 license:lgpl2.0+))))
