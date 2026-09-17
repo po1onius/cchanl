@@ -21,7 +21,7 @@ for definition in definitions:
         label = 'git-' + url.rstrip('/').split('/')[-1].removesuffix('.git')
         git.append((label, symbol))
         definition = definition.replace(';; TODO REVIEW: Define standalone package if this is a workspace.',
-            ';; Kept as a complete Git tree; prepare.py resolves workspace path dependencies.')
+            ';; Kept as a complete Git tree; the Guile build phase resolves workspace paths.')
     else:
         registry.append(symbol)
     kept.append(definition.rstrip())

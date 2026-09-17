@@ -33,9 +33,10 @@ the results; adjustments to resource installation reuse the Rust build.
 Release LTO is disabled and codegen units are set to 16 to limit memory usage.
 System `protoc` is used instead of executing the vendored prebuilt protoc.
 
-`prepare.py` maps the locked Git dependencies to local source paths while
-preserving each repository's workspace inheritance. These trees are placed
-outside `codex-rs` so Cargo does not infer membership in the Codex workspace.
+The `prepare-offline-build` Guile phase maps the locked Git dependencies to
+local source paths while preserving each repository's workspace inheritance.
+These trees are placed outside `codex-rs` so Cargo does not infer membership
+in the Codex workspace.
 It also adds `/gnu/store` alongside upstream's `/nix/store` handling and adds
 store paths for fallback shells.
 

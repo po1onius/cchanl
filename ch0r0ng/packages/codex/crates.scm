@@ -136,7 +136,7 @@
                 "1wsav2g6vxcvf2c0fv3jhxfr55l0p2g8nygy7rmmvcsfwgi8ahra"))
 
 (define rust-appcontainer-common-0.8.0.6cd3d58
-  ;; Kept as a complete Git tree; prepare.py resolves workspace path dependencies.
+  ;; Kept as a complete Git tree; the Guile build phase resolves workspace paths.
   (origin
     (method git-fetch)
     (uri (git-reference
@@ -858,7 +858,7 @@
                 "0a3aa2bmc8q35fb67432w16wvi54sfmb69rk9h5bhd18vw0c99fh"))
 
 (define rust-crossterm-0.29.0.45fecb9
-  ;; Kept as a complete Git tree; prepare.py resolves workspace path dependencies.
+  ;; Kept as a complete Git tree; the Guile build phase resolves workspace paths.
   (origin
     (method git-fetch)
     (uri (git-reference
@@ -2612,7 +2612,7 @@
                 "1ra088d885lbd21q1bxgpqdlk1zlndblmarn948jz2a40xsbjmvr"))
 
 (define rust-nucleo-0.5.0.4253de9
-  ;; Kept as a complete Git tree; prepare.py resolves workspace path dependencies.
+  ;; Kept as a complete Git tree; the Guile build phase resolves workspace paths.
   (origin
     (method git-fetch)
     (uri (git-reference
@@ -3554,7 +3554,7 @@
                 "1ghlh4lnawa8af02c618ksxcd0fzcmj7yak4mc5gb3bkz3x1zjx7"))
 
 (define rust-runfiles-0.1.0.b56cbaa
-  ;; Kept as a complete Git tree; prepare.py resolves workspace path dependencies.
+  ;; Kept as a complete Git tree; the Guile build phase resolves workspace paths.
   (origin
     (method git-fetch)
     (uri (git-reference
@@ -4392,7 +4392,7 @@
                 "0ig5dmv37xb6a2p9mj8crbkggbizs3qyi8wkfrrsz9qh19wj8v9z"))
 
 (define rust-tokio-tungstenite-0.28.0.0e5b2d7
-  ;; Kept as a complete Git tree; prepare.py resolves workspace path dependencies.
+  ;; Kept as a complete Git tree; the Guile build phase resolves workspace paths.
   (origin
     (method git-fetch)
     (uri (git-reference
@@ -4562,7 +4562,7 @@
                 "1qk23wqd17m063mgslb1lphc8k8m75fm0r1rag1sxjy9csbgavzf"))
 
 (define rust-tungstenite-0.27.0.4fffad3
-  ;; Kept as a complete Git tree; prepare.py resolves workspace path dependencies.
+  ;; Kept as a complete Git tree; the Guile build phase resolves workspace paths.
   (origin
     (method git-fetch)
     (uri (git-reference

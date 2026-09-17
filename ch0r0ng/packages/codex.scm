@@ -11,6 +11,10 @@
   #:use-module (guix build-system copy)
   #:use-module (guix build-system gnu)
   #:use-module (guix build-system trivial)
+  #:use-module (ice-9 regex)
+  #:use-module (ice-9 rdelim)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-13)
   #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
   #:use-module (gnu packages bootstrap)
@@ -23,7 +27,6 @@
   #:use-module (gnu packages ncurses)
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages protobuf)
-  #:use-module (gnu packages python)
   #:use-module (gnu packages regex)
   #:use-module (gnu packages rust)
   #:use-module (gnu packages rust-apps)
@@ -31,9 +34,6 @@
   #:use-module (gnu packages tls)
   #:use-module (gnu packages xiph)
   #:use-module (ch0r0ng packages codex crates))
-
-(define %prepare-script
-  (local-file (search-path %load-path "ch0r0ng/packages/codex/prepare.py")))
 
 ;; These sandbox-enabled archives are built and published by OpenAI.  Their
 ;; checksums are authenticated by the manifest pinned in the Codex source tree.
@@ -90,16 +90,253 @@
                                 inputs))))
           (add-before 'configure 'prepare-offline-build
             (lambda* (#:key inputs #:allow-other-keys)
+              (use-modules (ice-9 regex) (ice-9 rdelim)
+                           (ice-9 textual-ports)
+                           (srfi srfi-1) (srfi srfi-13))
+              ;; Keep the source preparation in the Guile build phase.  The
+              ;; Git inputs are complete workspaces, so they must live outside
+              ;; codex-rs or Cargo will treat them as Codex workspace members.
+              (define (read-text file)
+                (call-with-input-file file get-string-all))
+              (define (write-text file text)
+                (call-with-output-file file
+                  (lambda (port) (display text port))))
+              (define (replace-all text old new)
+                (let loop ((start 0) (parts '()))
+                  (let ((position (string-contains text old start)))
+                    (if position
+                        (loop (+ position (string-length old))
+                              (cons new
+                                    (cons (substring text start position) parts)))
+                        (apply string-append
+                               (reverse (cons (substring text start) parts)))))))
+              (define (field-value text field)
+                (let ((match
+                       (regexp-exec
+                        (make-regexp
+                         (string-append
+                          "(^|[,\\n])[[:space:]]*" field
+                          "[[:space:]]*=[[:space:]]*\\\"([^\\\"]*)\\\""))
+                        text)))
+                  (and match (match:substring match 2))))
+              (define (package-name manifest)
+                (call-with-input-file manifest
+                  (lambda (port)
+                    (let loop ((line (read-line port)) (in-package? #f))
+                      (cond
+                       ((eof-object? line) #f)
+                       ((string=? (string-trim-both line) "[package]")
+                        (loop (read-line port) #t))
+                       ((and in-package?
+                             (string-prefix? "[" (string-trim-both line)))
+                        #f)
+                       (in-package?
+                        (let ((match
+                               (regexp-exec
+                                (make-regexp
+                                 "^[[:space:]]*name[[:space:]]*=[[:space:]]*\\\"([^\\\"]+)\\\"")
+                                line)))
+                          (if match
+                              (match:substring match 1)
+                              (loop (read-line port) #t))))
+                       (else (loop (read-line port) #f)))))))
+              (define (lookup-package package-paths name)
+                (let ((entry (assoc name package-paths)))
+                  (and entry (cdr entry))))
+              (define (inline-field-name field)
+                (let ((match
+                       (regexp-exec
+                        (make-regexp
+                         "^[[:space:]]*([[:alnum:]_-]+)[[:space:]]*=")
+                        field)))
+                  (and match (match:substring match 1))))
+              (define (transform-inline line package-paths)
+                (let* ((open (string-index line #\{))
+                       (close (and open (string-rindex line #\}))))
+                  (if (and open close (> close open))
+                      (let* ((table (substring line (+ open 1) close))
+                             (key-end (string-index line #\=))
+                             (key (and key-end
+                                       (string-trim-both
+                                        (substring line 0 key-end))))
+                             (name (or (field-value table "package") key))
+                             (path (and (field-value table "git")
+                                        (lookup-package package-paths name))))
+                        (if path
+                            (let ((fields
+                                   (filter-map
+                                    (lambda (field)
+                                      (let ((field-name (inline-field-name field)))
+                                        (cond
+                                         ((and field-name (string=? field-name "git"))
+                                          (string-append "path = \"" path "\""))
+                                         ((and field-name
+                                               (member field-name '("rev" "branch" "tag")))
+                                          #f)
+                                         (else field))))
+                                    (map string-trim-both
+                                         (string-split table #\,)))))
+                              (string-append (substring line 0 open) "{"
+                                             (string-join fields ", ")
+                                             (substring line close)))
+                            line))
+                      line)))
+              (define (header? line)
+                (let ((line (string-trim-both line)))
+                  (and (> (string-length line) 1)
+                       (char=? (string-ref line 0) #\[)
+                       (char=? (string-ref line (- (string-length line) 1)) #\]))))
+              (define (section-package header)
+                (let* ((name (string-trim-both header))
+                       (name (substring name 1 (- (string-length name) 1)))
+                       (dot (string-rindex name #\.))
+                       (name (if dot (substring name (+ dot 1)) name)))
+                  (string-trim-both
+                   (if (and (> (string-length name) 1)
+                            (char=? (string-ref name 0) #\")
+                            (char=? (string-ref name (- (string-length name) 1)) #\"))
+                       (substring name 1 (- (string-length name) 1))
+                       name))))
+              (define (field-line? line field)
+                (regexp-exec
+                 (make-regexp
+                  (string-append "^[[:space:]]*" field
+                                 "[[:space:]]*=[[:space:]]*\\\"[^\\\"]*\\\""))
+                 line))
+              (define (replace-field-line line field path)
+                (let ((match
+                       (regexp-exec
+                        (make-regexp
+                         (string-append
+                          "^([[:space:]]*)" field
+                          "[[:space:]]*=[[:space:]]*\\\"[^\\\"]*\\\"(.*)$"))
+                        line)))
+                  (if match
+                      (string-append (match:substring match 1)
+                                     "path = \"" path "\""
+                                     (match:substring match 2))
+                      line)))
+              (define (obsolete-field-line? line)
+                (or (field-line? line "rev")
+                    (field-line? line "branch")
+                    (field-line? line "tag")))
+              (define (process-block block package-paths)
+                (let* ((header (and (header? (car block)) (car block)))
+                       (body (if header (cdr block) block))
+                       (body (map (lambda (line)
+                                    (transform-inline line package-paths))
+                                  body))
+                       (body-text (string-join body "\n"))
+                       (name (and header (section-package header)))
+                       (name (or (field-value body-text "package") name))
+                       (path (and name
+                                  (lookup-package package-paths name))))
+                  (if (and path (field-value body-text "git"))
+                      (cons header
+                            (filter (lambda (line)
+                                      (not (obsolete-field-line? line)))
+                                    (map (lambda (line)
+                                           (if (field-line? line "git")
+                                               (replace-field-line line "git" path)
+                                               line))
+                                         body)))
+                      (if header (cons header body) body))))
+              (define (process-manifest manifest package-paths)
+                (let* ((lines (string-split (read-text manifest) #\newline))
+                       (blocks
+                        (let loop ((remaining lines) (current '()) (result '()))
+                          (cond
+                           ((null? remaining)
+                            (reverse
+                             (if (null? current)
+                                 result
+                                 (cons (reverse current) result))))
+                           ((and (pair? current) (header? (car remaining)))
+                            (loop (cdr remaining) (list (car remaining))
+                                  (cons (reverse current) result)))
+                           (else
+                            (loop (cdr remaining) (cons (car remaining) current)
+                                  result))))))
+                  (write-text manifest
+                              (string-join
+                               (map (lambda (block)
+                                      (string-join
+                                       (process-block block package-paths) "\n"))
+                                    blocks)
+                               "\n"))))
+              (let* ((git-root (string-append (getcwd) "/../guix-git"))
+                     (git-inputs
+                      (map cdr
+                           (filter (lambda (input)
+                                     (string-prefix? "git-" (car input)))
+                                   inputs)))
+                     (package-paths '())
+                     (manifests '()))
+                (mkdir-p git-root)
+                (for-each
+                 (lambda (source)
+                   (let ((target (string-append git-root "/" (basename source))))
+                     (copy-recursively source target)
+                     (for-each
+                      (lambda (path)
+                        (let ((stat (lstat path)))
+                          (unless (eq? (stat:type stat) 'symlink)
+                            (chmod path (logior (stat:mode stat) #o200)))))
+                      (find-files target (const #t) #:directories? #t))
+                     (for-each
+                      (lambda (manifest)
+                        (let ((name (package-name manifest)))
+                          (when name
+                            (set! package-paths
+                                  (acons name (dirname manifest) package-paths)))
+                          (set! manifests (cons manifest manifests))))
+                      (find-files target "Cargo\\.toml$"))))
+                 git-inputs)
+                (for-each
+                 (lambda (manifest)
+                   (process-manifest manifest package-paths))
+                 (append manifests
+                         (filter (lambda (manifest)
+                                   (and (not (string-contains manifest "/guix-vendor/"))
+                                        (not (string-contains manifest "/guix-git/"))))
+                                 (find-files "." "Cargo\\.toml$")))))
               (setenv "PROTOC" (search-input-file inputs "/bin/protoc"))
               (setenv "GUIX_BASH" (search-input-file inputs "/bin/bash"))
               (setenv "GUIX_SH" (search-input-file inputs "/bin/sh"))
               (setenv "RUSTY_V8_ARCHIVE" (assoc-ref inputs "v8-archive"))
               (setenv "RUSTY_V8_SRC_BINDING_PATH" (assoc-ref inputs "v8-bindings"))
               (setenv "STABLE_GIT_COMMIT" "6b9826e3aa83b1a5947db50f4332cb9c65f1b340")
-              (apply invoke "python3" #$%prepare-script
-                     (map cdr (filter (lambda (input)
-                                        (string-prefix? "git-" (car input)))
-                                      inputs)))
+              (let ((build-script "code-mode-protocol/build.rs"))
+                (let ((text (read-text build-script)))
+                  (unless (string-contains
+                           text "protoc_bin_vendored::protoc_bin_path()?")
+                    (error "expected vendored protoc invocation"))
+                  (write-text
+                   build-script
+                   (replace-all text
+                                "protoc_bin_vendored::protoc_bin_path()?"
+                                (string-append "PathBuf::from(\""
+                                               (getenv "PROTOC") "\")")))))
+              (for-each
+               (lambda (file)
+                 (let ((text (read-text file)))
+                   (unless (string-contains text "\"/nix/store\",")
+                     (error "expected Nix store path list"))
+                   (write-text file
+                               (replace-all text "\"/nix/store\","
+                                            "\"/nix/store\",\n    \"/gnu/store\","))))
+               '("linux-sandbox/src/bwrap.rs"
+                 "utils/path-utils/src/system_commands.rs"))
+              (let ((file "shell-command/src/shell_detect.rs")
+                    (text (read-text "shell-command/src/shell_detect.rs")))
+                (write-text
+                 file
+                 (replace-all
+                  (replace-all text "&[\"/bin/bash\", \"/usr/bin/bash\"]"
+                               (string-append "&[\"" (getenv "GUIX_BASH")
+                                              "\", \"/bin/bash\", \"/usr/bin/bash\"]"))
+                  "&[\"/bin/sh\"]"
+                  (string-append "&[\"" (getenv "GUIX_SH") "\", \"/bin/sh\"]"))))
               ;; Lower peak memory while retaining release optimization.
               (setenv "CARGO_PROFILE_RELEASE_LTO" "false")
               (setenv "CARGO_PROFILE_RELEASE_DEBUG" "0")
@@ -144,7 +381,7 @@
                     (display "{\"version\":\"0.154.0\"}\n" port)))
                 (install-file "../LICENSE" (string-append out "/share/doc/codex"))))))))
     (native-inputs
-     (list clang cmake-minimal pkg-config protobuf python))
+     (list clang cmake-minimal pkg-config protobuf))
     (inputs
      (append
       (list (list "bash" bash)
