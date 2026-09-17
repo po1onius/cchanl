@@ -18,7 +18,7 @@
             clash-verge-service-type))
 
 (define %runtime-modules
-  (source-module-closure '((gnu system shadow) (guix build utils))))
+  (source-module-closure '((guix build utils))))
 
 (define-configuration/no-serialization clash-verge-configuration
   (package
@@ -47,7 +47,7 @@ TUN mode."))
   (let ((group (clash-verge-configuration-group config)))
     (with-imported-modules %runtime-modules
       #~(begin
-        (use-modules (guix build utils) (gnu system shadow))
+        (use-modules (guix build utils))
         (let ((gid (group:gid (getgrnam #$group))))
           ;; The service binary uses this fixed path after the binary patch.
           ;; Do not let it create a socket directory in world-writable /tmp.
@@ -76,7 +76,7 @@ TUN mode."))
          #~(lambda _
            ;; /run is volatile, so repeat the directory policy on every
            ;; manual Shepherd restart as well as during system activation.
-           (use-modules (guix build utils) (gnu system shadow))
+           (use-modules (guix build utils))
            (let ((gid (group:gid (getgrnam #$group))))
              (mkdir-p "/run/cvgeX")
              (chown "/run/cvgeX" 0 gid)
