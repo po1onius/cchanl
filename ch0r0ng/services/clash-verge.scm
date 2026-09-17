@@ -8,7 +8,9 @@
   #:use-module (gnu services configuration)
   #:use-module (gnu services linux)
   #:use-module (gnu services shepherd)
+  #:use-module (gnu services sysctl)
   #:use-module (gnu system accounts)
+  #:use-module (gnu system privilege)
   #:use-module (gnu system shadow)
   #:use-module (ch0r0ng packages clash-verge)
   #:export (clash-verge-configuration
@@ -30,7 +32,11 @@
    "Whether to install the GUI package in the system profile.")
   (auto-start?
    (boolean #t)
-   "Whether Shepherd starts the service automatically."))
+   "Whether Shepherd starts the service automatically.")
+  (tun-mode?
+   (boolean #f)
+   "Whether to enable the capabilities and kernel settings required by
+TUN mode."))
 
 (define (clash-verge-accounts config)
   (list (user-group
@@ -91,6 +97,25 @@
              '("XDG_STATE_HOME=/var/lib" "RUST_LOG=info"))))))
       (stop #~(make-kill-destructor))))))
 
+(define (clash-verge-privileged-programs config)
+  (if (clash-verge-configuration-tun-mode? config)
+      (list
+       (privileged-program
+        ;; The package wrapper dispatches to this copy when it exists.
+        (program (file-append
+                  (clash-verge-configuration-package config)
+                  "/bin/.clash-verge-real"))
+        (capabilities "cap_net_bind_service,cap_net_raw,cap_net_admin=ep")))
+      '()))
+
+(define (clash-verge-sysctl-settings config)
+  (if (clash-verge-configuration-tun-mode? config)
+      ;; Match NixOS's loose reverse path filtering for policy-routed TUN
+      ;; traffic.  Set both existing and newly-created interfaces.
+      '(("net.ipv4.conf.all.rp_filter" . "2")
+        ("net.ipv4.conf.default.rp_filter" . "2"))
+      '()))
+
 (define clash-verge-service-type
   (service-type
    (name 'clash-verge)
@@ -100,9 +125,16 @@
      (service-extension activation-service-type
                         clash-verge-prepare-directories)
      (service-extension shepherd-root-service-type clash-verge-shepherd)
-     ;; Clash Verge's TUN mode needs this module.  Loading it unconditionally
-     ;; is harmless and means enabling TUN in the GUI works without a rebuild.
-     (service-extension kernel-module-loader-service-type (const '("tun")))
+     (service-extension privileged-program-service-type
+                        clash-verge-privileged-programs)
+     (service-extension sysctl-service-type clash-verge-sysctl-settings)
+     ;; Clash Verge's TUN mode needs this module.  Only load it when the
+     ;; corresponding service option is enabled.
+     (service-extension kernel-module-loader-service-type
+                        (lambda (config)
+                          (if (clash-verge-configuration-tun-mode? config)
+                              '("tun")
+                              '())))
      (service-extension profile-service-type
                         (lambda (config)
                           (if (clash-verge-configuration-install-gui? config)

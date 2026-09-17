@@ -119,7 +119,21 @@
                      #$(file-append gtk+ "/share")
                      #$(file-append gsettings-desktop-schemas "/share")))
                   `("GIO_EXTRA_MODULES" prefix
-                    (#$(file-append glib-networking "/lib/gio/modules"))))))))))
+                    (#$(file-append glib-networking "/lib/gio/modules"))))
+                ;; Guix installs capability-bearing copies under
+                ;; /run/privileged/bin.  Keep the normal wrapper for users who
+                ;; do not enable the service, but use the privileged copy when
+                ;; TUN mode is enabled in the system configuration.
+                (substitute* program
+                  (("^exec -a .*$")
+                   (string-append
+                    "if test -x /run/privileged/bin/.clash-verge-real; then\n"
+                    "  exec -a \"${0##*/}\" "
+                    "/run/privileged/bin/.clash-verge-real \"$@\"\n"
+                    "else\n"
+                    "  exec -a \"${0##*/}\" \""
+                    out "/bin/.clash-verge-real\" \"$@\"\n"
+                    "fi\n")))))))))
     (native-inputs
      (list patchelf))
     (inputs
