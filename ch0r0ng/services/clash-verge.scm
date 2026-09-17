@@ -99,12 +99,16 @@ TUN mode."))
 
 (define (clash-verge-privileged-programs config)
   (if (clash-verge-configuration-tun-mode? config)
+      ;; The GUI asks the service to launch this fixed privileged path when
+      ;; TUN mode is active.  Give the capability-bearing copy to the core,
+      ;; not to the GUI: a capability-bearing GTK process enters AT_SECURE,
+      ;; which breaks session-bus environment handling and prevents Tauri
+      ;; from locating its resources relative to the store executable.
       (list
        (privileged-program
-        ;; The package wrapper dispatches to this copy when it exists.
         (program (file-append
                   (clash-verge-configuration-package config)
-                  "/bin/.clash-verge-real"))
+                  "/bin/verge-mihomo"))
         (capabilities "cap_net_bind_service,cap_net_raw,cap_net_admin=ep")))
       '()))
 

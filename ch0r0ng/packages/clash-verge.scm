@@ -89,14 +89,25 @@
                 ;; The binary release was built for /lib64 and embeds the
                 ;; installer-era /tmp/verge IPC directory.  A same-size path
                 ;; replacement keeps the ELF layout intact while putting the
-                ;; socket below a root-owned /run directory managed by the
-                ;; Shepherd service.
+                ;; sockets below a root-owned /run directory managed by the
+                ;; Shepherd service.  The GUI constructs the core socket path
+                ;; from separate "/tmp" and "verge" strings, so replacing
+                ;; only the contiguous "/tmp/verge" string is insufficient.
                 (for-each
                  (lambda (file)
                    ;; sed operates on bytes here; both strings are exactly
                    ;; ten bytes long, so no ELF offsets are shifted.
                    (invoke "sed" "-i" "s|/tmp/verge|/run/cvgeX|g" file))
                  (list program service))
+                ;; Match the path construction used by src-tauri/src/utils/
+                ;; dirs.rs in the upstream build.  All replacements preserve
+                ;; byte length, which is required for an in-place patch of a
+                ;; prebuilt ELF.  Keep the unrelated X11 socket path intact.
+                (invoke "sed" "-i"
+                        "-e" "s|/tmp|/run|g"
+                        "-e" "s|/run/.X11-unix/X|/tmp/.X11-unix/X|g"
+                        "-e" "s|vergeverge-mihomo.sock|cvgeXverge-mihomo.sock|g"
+                        program)
                 (for-each
                  (lambda (file)
                    (invoke "patchelf" "--set-interpreter"
@@ -120,20 +131,11 @@
                      #$(file-append gsettings-desktop-schemas "/share")))
                   `("GIO_EXTRA_MODULES" prefix
                     (#$(file-append glib-networking "/lib/gio/modules"))))
-                ;; Guix installs capability-bearing copies under
-                ;; /run/privileged/bin.  Keep the normal wrapper for users who
-                ;; do not enable the service, but use the privileged copy when
-                ;; TUN mode is enabled in the system configuration.
-                (substitute* program
-                  (("^exec -a .*$")
-                   (string-append
-                    "if test -x /run/privileged/bin/.clash-verge-real; then\n"
-                    "  exec -a \"${0##*/}\" "
-                    "/run/privileged/bin/.clash-verge-real \"$@\"\n"
-                    "else\n"
-                    "  exec -a \"${0##*/}\" \""
-                    out "/bin/.clash-verge-real\" \"$@\"\n"
-                    "fi\n")))))))))
+                ;; The GUI must always run from the store copy.  In particular,
+                ;; do not dispatch it to /run/privileged/bin: that changes the
+                ;; Tauri resource base directory and enables AT_SECURE.  TUN
+                ;; capabilities belong on verge-mihomo, not on the GUI.
+                ))))))
     (native-inputs
      (list patchelf))
     (inputs
