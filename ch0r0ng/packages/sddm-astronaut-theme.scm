@@ -47,13 +47,13 @@
    (build-system copy-build-system)
    (arguments
     (list #:install-plan #~'(("." "share/sddm/themes/sddm-astronaut-theme"))
-          ;; #:phases #~(modify-phases %standard-phases
-          ;;              (add-after 'unpack 'choose-preset
-          ;;                (lambda _
-          ;;                  (substitute* "metadata.desktop"
-          ;;                    (("ConfigFile=Themes/astronaut.conf")
-          ;;                     "ConfigFile=Themes/black_hole.conf")))))
-          ))
+          ;; 默认预设：改这里换风格（可选值见主题的 Themes/*.conf）
+          #:phases #~(modify-phases %standard-phases
+                       (add-after 'unpack 'choose-preset
+                         (lambda _
+                           (substitute* "metadata.desktop"
+                             (("ConfigFile=Themes/astronaut.conf")
+                              "ConfigFile=Themes/japanese_aesthetic.conf")))))))
    (home-page "https://github.com/Keyitdev/sddm-astronaut-theme")
    (synopsis "Astronaut theme series for SDDM")
    (description
