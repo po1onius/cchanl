@@ -1,2 +1,15 @@
 (channel
- (version 0))
+ (version 0)
+ ;; ch0r0ng/packages/chrome.scm 用到 (nongnu packages chrome)，所以必须把
+ ;; nonguix 声明成依赖。guix pull 编译一个 channel 时，load path 只包含
+ ;; 该 channel 自己 + 它声明的依赖 + guix 核心；不声明的话会报
+ ;; "no code for module (nongnu packages chrome)"。
+ (dependencies
+  (channel
+   (name nonguix)
+   (url "https://gitlab.com/nonguix/nonguix")
+   (introduction
+    (channel-introduction
+     (version 0)
+     (commit "897c1a470da759236cc11798f4e0a5f7d4d59fbc")
+     (signer "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))))
