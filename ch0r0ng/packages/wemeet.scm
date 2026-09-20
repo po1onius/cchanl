@@ -8,13 +8,37 @@
 ;;;   * 补丁（nixpkgs 同名做法）：
 ;;;       - libwemeet_base.so 里 co_jump_to_link 的协程寄存器补丁
 ;;;         （48 83 ff 00 -> 49 83 fc 00），不打通话时会崩；
-;;;       - 三个 LD_PRELOAD 小库（见下面 wemeet-shims）；
+;;;       - 四个 LD_PRELOAD 小库（见下面 wemeet-shims）；
 ;;;   * bin/wemeet 走原生 Wayland，bin/wemeet-xwayland 强制 XWayland，
 ;;;     环境变量照抄 nixpkgs 的 wrapper。
 ;;;
-;;; 没做的部分：nixpkgs 里那个 wemeet-wayland-screenshare（Wayland 投屏 hook，
-;;; 要拉 opencv/Qt5/pipewire 一大票依赖）。没有它，Wayland 下共享屏幕用不了，
-;;; 需要的话可以再补一个包。
+;;; ---------------------------------------------------------------------------
+;;; 在 niri + Wayland 下让「共享屏幕」真正出画面，一共需要 5 处改动
+;;; （前 4 处在本包，第 5 处在 niri 侧；完整分析见 ../docs/wemeet-screenshare.md）：
+;;;
+;;;   1. bin/wemeet 里 export WEMEET_XWAYLAND="1"  ← 见 build/wemeet.scm
+;;;      screen_share 模块的 IsUseXDGDesktopPortal() 只有一个判断：
+;;;          return (getenv("WEMEET_XWAYLAND") ?: "") == "1";
+;;;      不等于 "1" 就退回 X11 抓屏，而 Wayland 会话里 X11 根窗口是空的
+;;;      → 共享时预览是蓝块、对端整块绿色。
+;;;   2. inputs 里 mesa 必须排在 libglvnd 前面：libglvnd 的 libEGL.so.1 只是
+;;;      dispatcher，要读 /usr/share/glvnd/egl_vendor.d（Guix 上没有），
+;;;      否则 libxcast 的 EGL 初始化失败 → 5021「会议发生异常」。
+;;;   3. inputs 里要有 pipewire：模块 dlopen("libpipewire-0.3.so.0")。
+;;;   4. wemeet-portal-format-fix.c：模块给 pw_stream_connect 传的 EnumFormat
+;;;      过滤器是空的（format=0/size=0x0），协商必然失败（res=-32
+;;;      no more input formats）。这个 shim 换成 4 个合法候选，
+;;;      前两个不带 modifier（走共享内存缓冲），后两个带 Modifier::Invalid 作兼容。
+;;;   5. niri 侧要用 niri-git（见 packages/wm.scm）：
+;;;      SHM 采集回退已合并进 niri 主线（PR #1791）但没有 release，26.04 只 offer
+;;;      DMA-BUF；而 PipeWire 约定"协商结果没有 VideoModifier ⇒ 只能用共享内存
+;;;      缓冲"，强行走线性 dmabuf 又会在 Intel Gen12 上静默出黑帧（issue #4123）。
+;;;
+;;; 已删除的弯路：nixpkgs 里那个 wemeet-wayland-screenshare hook（以及它的包定义）。
+;;; 上游 README 已发 deprecation notice 要求卸载；实测挂在 3.26.10.401 上一按
+;;; 「共享屏幕」就闪退，而且它自己建 PipeWire stream 也撞同一个空 EnumFormat 的坑。
+;;; 同样已删除的还有 niri-shm-sharing（26.04 + 手工移植补丁），现由 niri-git 取代。
+;;; ---------------------------------------------------------------------------
 ;;;
 ;;; 构建：
 ;;;   guix build -L ~/cchanl wemeet
@@ -25,7 +49,6 @@
   #:use-module (guix gexp)
   #:use-module (guix packages)
   #:use-module (guix utils)
-  #:use-module (guix build-system cmake)
   #:use-module (guix build-system gnu)
   #:use-module (guix git-download)
   #:use-module (nonguix build-system binary)
@@ -42,7 +65,6 @@
   #:use-module (gnu packages gcc)
   #:use-module (gnu packages gl)
   #:use-module (gnu packages glib)
-  #:use-module (gnu packages gnome)
   #:use-module (gnu packages gnupg)
   #:use-module (gnu packages gtk)
   #:use-module (gnu packages image-processing)
@@ -53,7 +75,6 @@
   #:use-module (gnu packages networking)
   #:use-module (gnu packages nss)
   #:use-module (gnu packages openldap)
-  #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages pulseaudio)
   #:use-module (gnu packages tls)
   #:use-module (gnu packages web)
@@ -61,11 +82,16 @@
   #:use-module (gnu packages xml)
   #:use-module (gnu packages xorg))
 
-;;; 三个 LD_PRELOAD 出来的小库的源码（放在 packages/wemeet-shims/）：
-;;;   wrap.c              —— AUR wemeet-bin 里 AvianaCruz 写的，修文件传输崩溃
-;;;                          （-DWRAP_FORCE_SINK_HARDWARE：强制把 sink 当硬件）
-;;;   wemeet-x11-fix.c    —— nixpkgs 里的，修 Wayland 下 XSetInputFocus 崩溃
-;;;   wemeet-camera-fix.c —— nixpkgs 里的，修 Wayland 下摄像头预览渲染
+;;; LD_PRELOAD 出来的小库的源码（放在 packages/wemeet-shims/）：
+;;;   wrap.c                     —— AUR wemeet-bin 里 AvianaCruz 写的，修文件传输
+;;;                                 崩溃（-DWRAP_FORCE_SINK_HARDWARE：把 sink 当硬件）
+;;;   wemeet-x11-fix.c           —— nixpkgs 里的，修 Wayland 下 XSetInputFocus 崩溃
+;;;   wemeet-camera-fix.c        —— nixpkgs 里的，修 Wayland 下摄像头预览渲染
+;;;   wemeet-portal-format-fix.c —— 自写：wemeet 在 portal 模式下给 PipeWire 采集流
+;;;                                 传的是空 EnumFormat 过滤器（format=0/size=0x0），
+;;;                                 协商必然失败（res=-32 no more input formats）→
+;;;                                 共享屏幕时对端全黑。本库把它换成最小的合法过滤器
+;;;                                 （BGRx/BGRA + Modifier::Invalid）。
 (define %wemeet-shims-directory
   (string-append (current-source-directory) "/wemeet-shims"))
 
@@ -84,21 +110,30 @@
                  (lambda* (#:key inputs #:allow-other-keys)
                    (define (libdir name)
                      (string-append (assoc-ref inputs name) "/lib"))
+                   (define (incdir name)
+                     (string-append (assoc-ref inputs name) "/include"))
                    (define rpath
                      (string-join (map libdir
                                        '("openssl" "pulseaudio" "libx11"
-                                         "mesa" "libglvnd"))
+                                         "mesa" "libglvnd" "pipewire"))
                                   ":"))
+                   ;; portal 抓屏的 shim 需要 pipewire/spa 头文件
+                   (define pw-include
+                     (list (string-append "-I" (incdir "pipewire") "/pipewire-0.3")
+                           (string-append "-I" (incdir "pipewire") "/spa-0.2")))
                    (for-each
                     (lambda (spec)
                       (apply invoke "gcc" "-Wall" "-Wextra" "-fPIC" "-shared"
                              (string-append "-Wl,-rpath," rpath)
-                             "-o" (car spec) (cadr spec) (caddr spec)))
+                             (append pw-include (caddr spec)
+                                     (list "-o" (car spec) (cadr spec)))))
                     '(("libwemeetwrap.so" "wrap.c"
                        ("-DWRAP_FORCE_SINK_HARDWARE" "-lssl" "-lcrypto" "-lpulse"))
                       ("libwemeet-x11-fix.so" "wemeet-x11-fix.c" ("-ldl" "-lX11"))
                       ("libwemeet-camera-fix.so" "wemeet-camera-fix.c"
-                       ("-ldl" "-lEGL" "-lX11"))))))
+                       ("-ldl" "-lEGL" "-lX11"))
+                      ("libwemeet-portal-format-fix.so"
+                       "wemeet-portal-format-fix.c" ("-ldl" "-lpipewire-0.3"))))))
                (replace 'install
                  (lambda _
                    (let ((lib (string-append #$output "/lib")))
@@ -106,9 +141,10 @@
                      (for-each (lambda (f) (install-file f lib))
                                '("libwemeetwrap.so"
                                  "libwemeet-x11-fix.so"
-                                 "libwemeet-camera-fix.so"))))))))
+                                 "libwemeet-camera-fix.so"
+                                 "libwemeet-portal-format-fix.so"))))))))
     (native-inputs (list gcc))
-    (inputs (list openssl pulseaudio libx11 mesa libglvnd))
+    (inputs (list openssl pulseaudio libx11 mesa libglvnd pipewire))
     (home-page "https://wemeet.qq.com")
     (synopsis "LD_PRELOAD shims for the official Tencent Meeting build")
     (description
@@ -119,43 +155,6 @@ camera preview under Wayland.")
     (license (nonfree "https://wemeet.qq.com"))))
 
 (define %wemeet-version "3.26.10.401")
-
-;;; Wayland 下共享屏幕用的 hook（nixpkgs 里叫 wemeet-wayland-screenshare）：
-;;; 厂商二进制只知道用 X11 抓屏，这个库直接跟 desktop portal + PipeWire 打交道，
-;;; 由 wrapper 以 LD_PRELOAD 注入。装出来的路径要正好是 lib/wemeet/libhook.so
-;;; （上游 CMakeLists 里写死的 DESTINATION）。
-(define-public wemeet-wayland-screenshare
-  (package
-    (name "wemeet-wayland-screenshare")
-    (version "0-unstable-2025-05-31")
-    (source (origin
-              (method git-fetch)
-              (uri (git-reference
-                    (url "https://github.com/xuwd1/wemeet-wayland-screenshare")
-                    (commit "7f338966e162612b09d838512b11af5901414d05")
-                    ;; 仓库带一个 stb 子模块
-                    (recursive? #t)))
-              (sha256
-               (base32
-                "0nxrx4z7rzq1nzb90srykda6yad0z300pr96w32smx5y8s0drlsj"))))
-    (build-system cmake-build-system)
-    (arguments (list #:tests? #f))      ;上游没有测试
-    (native-inputs (list pkg-config))
-    (inputs (list glib
-                  libportal
-                  libx11
-                  libxcomposite
-                  libxdamage
-                  libxrandr
-                  opencv
-                  pipewire))
-    (home-page "https://github.com/xuwd1/wemeet-wayland-screenshare")
-    (synopsis "Wayland screen sharing hook for Tencent Meeting")
-    (description
-     "This library is @code{LD_PRELOAD}ed into the official Tencent Meeting
-build so that screen sharing works on Wayland: instead of using X11 screen
-capture it talks to the desktop portal and PipeWire directly.")
-    (license license:expat)))
 
 (define-public wemeet
   (package
@@ -190,11 +189,9 @@ capture it talks to the desktop portal and PipeWire directly.")
                                 #:outputs outputs
                                 #:bash #$(file-append bash-minimal "/bin/bash")
                                 #:shims #$(file-append wemeet-shims "/lib")
-                                #:screenshare #$(file-append wemeet-wayland-screenshare "/lib/wemeet")
                                 #:xkb #$(file-append xkeyboard-config
                                                      "/share/X11/xkb")))))))
     (inputs (list wemeet-shims
-                  wemeet-wayland-screenshare
                   alsa-lib
                   curl
                   dbus
@@ -208,10 +205,15 @@ capture it talks to the desktop portal and PipeWire directly.")
                   harfbuzz
                   libdrm
                   libgcrypt
-                  libglvnd
                   libice
                   libidn2
                   libpsl
+                  ;; ★ 投屏模块（bin/modules/screen_share/libscreen_share_module.so）
+                  ;;   用 dlopen("libpipewire-0.3.so.0") 拿 PipeWire stream，dlopen
+                  ;;   不经过 DT_NEEDED，所以 ldd 扫不出来，但缺了它 Wayland 投屏
+                  ;;   的 wayland_screencast_helper 会初始化失败并退回 X11 抓屏
+                  ;;   （表现为：不弹选择框、画面全绿）。
+                  pipewire
                   pulseaudio
                   libsm
                   libunwind
@@ -221,6 +223,11 @@ capture it talks to the desktop portal and PipeWire directly.")
                   libxrandr
                   libxtst
                   mesa
+                  ;; ★ mesa 必须排在 libglvnd 前面：libglvnd 的 libEGL.so.1 只是派发器，
+                  ;;   它按 FHS 路径 /usr/share/glvnd/egl_vendor.d 找厂商实现，Guix 上找不到，
+                  ;;   会导致 wemeet 的 AV 引擎 eglGetDisplay 报 EGL_BAD_PARAMETER(300c)。
+                  ;;   libGL.so.1 仍然来自 libglvnd，所以 libglvnd 不能删。
+                  libglvnd
                   mit-krb5
                   nghttp2
                   nspr

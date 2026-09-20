@@ -134,11 +134,16 @@ plugins/platforms/libqxcb.so 等）。"
                  (lambda (file stat)
                    (and (not (symbolic-link? file)) (elf-file? file)))))))
 
-(define* (wrap-wemeet #:key inputs outputs bash shims xkb screenshare
+(define* (wrap-wemeet #:key inputs outputs bash shims xkb
                       #:allow-other-keys)
   "生成 bin/wemeet（原生 Wayland）和 bin/wemeet-xwayland（强制走 XWayland）。
 环境变量照抄 nixpkgs：QT_PLUGIN_PATH / QT_STYLE_OVERRIDE / IBUS_USE_PORTAL /
-LP_NUM_THREADS / XKB_CONFIG_ROOT，另外 LD_PRELOAD 三个修补库。"
+LP_NUM_THREADS / XKB_CONFIG_ROOT，另外 LD_PRELOAD 四个修补库（见 packages/wemeet.scm
+里的 wemeet-shims）。bin/wemeet 还会设 WEMEET_XWAYLAND=1，让 screen_share 模块走
+XDG Desktop Portal 抓屏而不是 X11 抓屏。
+
+不 LD_PRELOAD 已废弃的 wemeet-wayland-screenshare hook：wemeet >= 3.26.10 官方自己
+支持 Wayland 共享屏幕，而那个 hook 会让它一按「共享屏幕」就崩。"
   (let* ((out (assoc-ref outputs "out"))
          (app (string-append out "/app/wemeet"))
          (libs (string-join (delete-duplicates
@@ -148,7 +153,8 @@ LP_NUM_THREADS / XKB_CONFIG_ROOT，另外 LD_PRELOAD 三个修补库。"
                             ":"))
          (preload (string-join (list (string-append shims "/libwemeetwrap.so")
                                      (string-append shims "/libwemeet-x11-fix.so")
-                                     (string-append shims "/libwemeet-camera-fix.so"))
+                                     (string-append shims "/libwemeet-camera-fix.so")
+                                     (string-append shims "/libwemeet-portal-format-fix.so"))
                                ":")))
     (define (write-wrapper name extra)
       (let ((file (string-append out "/bin/" name)))
@@ -172,26 +178,18 @@ LP_NUM_THREADS / XKB_CONFIG_ROOT，另外 LD_PRELOAD 三个修补库。"
             (display extra port)
             (format port "exec -a \"$0\" \"~a/bin/wemeetapp\" \"$@\"~%" app)))
         (chmod file #o555)))
-    (write-wrapper
-     "wemeet"
-     ;; Wayland 下（不是被强制走 XWayland 时）再挂上投屏 hook。
-     ;; hook 要放在 LD_PRELOAD 最前面，和 nixpkgs 的 --run 一致。
-     (if screenshare
-         (string-append
-          "if [ \"${XDG_SESSION_TYPE:-}\" = wayland ]; then\n"
-          "    export LD_PRELOAD=\"" screenshare "/libhook.so"
-          "${LD_PRELOAD:+:$LD_PRELOAD}\"\n"
-          "fi\n")
-         ""))
+    ;; 纯 Wayland 启动：必须设 WEMEET_XWAYLAND=1。
+    ;; 反汇编 screen_share 模块的 IsUseXDGDesktopPortal()（util.cc）：
+    ;;     return (getenv("WEMEET_XWAYLAND") ?: "") == "1";
+    ;; 也就是【只有】该变量等于 "1" 时才走 XDG Desktop Portal 抓屏，否则退回 X11
+    ;; 抓屏 —— 在 Wayland 会话里 X11 根窗口是空的，于是共享时不显示捕获预览
+    ;; （蓝色方块）、开始共享后整块绿屏。变量名为 xwayland 是因为语义是
+    ;; "本进程跑在 XWayland 下，X11 根窗口没意义，请改用 portal"。
+    (write-wrapper "wemeet" "export WEMEET_XWAYLAND=\"1\"\n")
     ;; wemeet-xwayland 和厂商 wemeetapp.sh 在 Wayland 下的行为一致：
     ;; 强制走 XWayland，并设置 WEMEET_XWAYLAND=1（nixpkgs 少设了后者）。
     (write-wrapper "wemeet-xwayland"
                    (string-append
-                    (if screenshare
-                        (string-append
-                         "export LD_PRELOAD=\"" screenshare
-                         "/libhook.so${LD_PRELOAD:+:$LD_PRELOAD}\"\n")
-                        "")
                     "export XDG_SESSION_TYPE=\"x11\"\n"
                     "export QT_QPA_PLATFORM=\"xcb\"\n"
                     "unset WAYLAND_DISPLAY\n"
