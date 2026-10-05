@@ -484,7 +484,7 @@ Codex release, with the configuration used by its standalone bwrap helper.")
 (define-public codex-bin
   (package
     (name "codex-bin")
-    (version "0.154.0")
+    (version "0.160.0")
     (source
      (origin
        (method url-fetch)
@@ -500,8 +500,8 @@ Codex release, with the configuration used by its standalone bwrap helper.")
        (sha256
         (base16-string->bytevector
          (if (string-prefix? "aarch64" (%current-system))
-             "97d93e11df72d3c26772db019e6ea8bb72c246500d46b98c760839f3240355e6"
-             "fc6e3e3b85f2cf7d664520ee5c66a7fe4aa12bae7d46834f47e2f165fd0d6f78")))))
+             "7f0fe42ff22ecfa3a47bc4a34f5b22c4218b431a4ec0aba51c7d98299f07900c"
+             "4fcc47ab57f52ff75363951a8761146cd10c8288bd86fed45487dbb204a16b71")))))
     (build-system copy-build-system)
     (arguments
      (list
