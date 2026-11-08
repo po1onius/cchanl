@@ -20,11 +20,9 @@
   #:use-module (gnu packages bootstrap)
   #:use-module (gnu packages cmake)
   #:use-module (gnu packages compression)
-  #:use-module (gnu packages elf)
   #:use-module (gnu packages gstreamer)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages llvm)
-  #:use-module (gnu packages ncurses)
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages protobuf)
   #:use-module (gnu packages regex)
@@ -470,21 +468,10 @@ Codex release, with the configuration used by its standalone bwrap helper.")
     (license (list license:asl2.0 license:lgpl2.0+))))
 
 ;;; Repackage the complete upstream binary distribution, including its helpers.
-(define %codex-bin-tinfo
-  ;; Upstream zsh requires NCURSES6_TINFO_5.0.19991023.  Guix's regular
-  ;; ncurses-with-tinfo exports unversioned symbols, which causes loader warnings.
-  (package
-    (inherit ncurses/tinfo)
-    (name "codex-bin-ncurses-with-tinfo")
-    (arguments
-     (substitute-keyword-arguments (package-arguments ncurses/tinfo)
-       ((#:configure-flags flags)
-        #~(cons "--with-versioned-syms" #$flags))))))
-
 (define-public codex-bin
   (package
     (name "codex-bin")
-    (version "0.162.1")
+    (version "0.167.0")
     (source
      (origin
        (method url-fetch)
@@ -500,8 +487,8 @@ Codex release, with the configuration used by its standalone bwrap helper.")
        (sha256
         (base16-string->bytevector
          (if (string-prefix? "aarch64" (%current-system))
-             "53a9ce0b94beb27a63fdeb2f7704d95199e17b3898aa33b60461a1a93ac0d88b"
-             "a676f5722aae0d86cbe3764332f08eab1fdd89dc0a300b3ad4ffbf48611fa3e3")))))
+             "0de261ecf1e7f3028a7952f03fca2093f749277d38590b78bb32f8567756bbb7"
+             "3bbf75e83de6b58aed28f2cf6e33ad423ec31fd4700a1457b94be557ea5a7c6e")))))
     (build-system copy-build-system)
     (arguments
      (list
@@ -515,21 +502,7 @@ Codex release, with the configuration used by its standalone bwrap helper.")
               (mkdir "source")
               (chdir "source")
               (invoke "tar" "xf" source)))
-          (add-after 'install 'patch-bundled-zsh
-            (lambda* (#:key inputs outputs #:allow-other-keys)
-              ;; The CLI and Rust helpers are static musl executables, but the
-              ;; bundled zsh uses glibc and the separate ncurses terminfo library.
-              (let ((zsh (string-append (assoc-ref outputs "out")
-                                       "/codex-resources/zsh/bin/zsh")))
-                (invoke "patchelf" "--set-interpreter"
-                        (search-input-file inputs #$(glibc-dynamic-linker)) zsh)
-                (invoke "patchelf" "--set-rpath"
-                        (string-append
-                         (dirname (search-input-file inputs "/lib/libc.so.6"))
-                         ":"
-                         (dirname (search-input-file inputs "/lib/libtinfo.so.6")))
-                        zsh))))
-          (add-after 'patch-bundled-zsh 'check-installed-programs
+          (add-after 'install 'check-installed-programs
             (lambda* (#:key outputs tests? #:allow-other-keys)
               (when tests?
                 (let ((out (assoc-ref outputs "out")))
@@ -539,18 +512,14 @@ Codex release, with the configuration used by its standalone bwrap helper.")
                           "--help")
                   (invoke (string-append out "/codex-resources/bwrap")
                           "--version")
-                  (invoke (string-append out "/codex-path/rg") "--version")
-                  (invoke (string-append out "/codex-resources/zsh/bin/zsh")
-                          "-f" "-e" "-c"
-                          "[[ $((6 * 7)) = 42 ]]; print -r -- codex-zsh-ok"))))))))
-    (native-inputs (list patchelf))
-    (inputs (list glibc %codex-bin-tinfo))
+                  (invoke (string-append out "/codex-path/rg") "--version"))))))))
     (supported-systems '("x86_64-linux" "aarch64-linux"))
     (home-page "https://github.com/openai/codex")
     (synopsis "Prebuilt OpenAI coding agent for the terminal")
     (description
      "Codex CLI provides an interactive terminal interface and a non-interactive
 coding agent.  This package installs OpenAI's prebuilt release bundle, including
-the Code Mode host, ripgrep, bubblewrap, and zsh.  The application and its
-bundled libraries are not compiled from source by this package.")
+the Code Mode host, exec server, voice runtime, ripgrep, and bubblewrap.  The
+application and its bundled libraries are not compiled from source by this
+package.")
     (license (list license:asl2.0 license:lgpl2.0+))))

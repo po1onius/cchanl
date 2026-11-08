@@ -49,7 +49,8 @@ guix install -L /path/to/cchanl ghostty
 | `google-chrome-stable-wayland` | 基于 nonguix Chrome stable 的 Wayland 版本，启动时默认使用 `--ozone-platform=wayland`。 |
 | `clash-verge-rev-bin` | Clash Verge Rev 预编译 Linux 二进制包，当前只支持 `x86_64-linux`。配合下方的 `clash-verge-service-type` 使用特权 IPC 服务。 |
 | `codex` | 从固定版本源码构建的 OpenAI Codex CLI，同时包含 Code Mode、voice host 和 Codex 使用的 bubblewrap。支持 `x86_64-linux` 和 `aarch64-linux`。 |
-| `codex-bin` | OpenAI Codex CLI 的官方预编译发行包，包含 ripgrep、bubblewrap、zsh 等运行时文件。支持 `x86_64-linux` 和 `aarch64-linux`。 |
+| `codex-bin` | OpenAI Codex CLI 的官方预编译发行包，包含 Code Mode host、exec server、voice runtime、ripgrep 和 bubblewrap 等运行时文件。支持 `x86_64-linux` 和 `aarch64-linux`。 |
+| `rust-toolchain` | Rust 官方二进制工具链，固定稳定版清单；同时提供 stable/beta/nightly、项目工具链文件、组件与交叉目标选择。见 [Rust 工具链](docs/rustup.md)。 |
 | `dae-bin` | dae 的预编译包，提供基于 eBPF 的透明代理程序，当前只支持 `x86_64-linux`。 |
 | `ghostty` | Ghostty GPU 加速终端，使用 GTK4/libadwaita，构建时离线填充 Zig 依赖缓存。 |
 | `niri-git` | 从固定 Git commit 构建的 niri 主线版本，包含尚未进入稳定版的 PipeWire/SHM 屏幕采集回退。它属于预发布包，构建需要下载并处理大量 Rust crate。 |
