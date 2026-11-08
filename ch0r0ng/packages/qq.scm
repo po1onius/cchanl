@@ -1,7 +1,8 @@
 ;;; qq —— 腾讯 QQ（Linux 版官方 .deb 二进制）
 ;;;
 ;;; 参考 nixpkgs 的 pkgs/by-name/qq/qq 和 nonguix 的 google-chrome 的写法：
-;;;   * source 直接用官方 .deb（fixed-output origin）；
+;;;   * source 通过官网 GetSign 接口取得临时下载地址，再下载官方 .deb；
+;;;     下载为 fixed-output origin，始终按固定 SHA256 校验内容；
 ;;;   * 用 nonguix 的 binary-build-system（ch0r0ng 本来就依赖 nonguix）：
 ;;;     它的 binary-unpack 阶段会 ar x + tar x 把 .deb 解开，
 ;;;     之后的工作目录就是 .deb 的根（opt/... usr/...）；
@@ -32,6 +33,8 @@
 (define-module (ch0r0ng packages qq)
   #:use-module (guix download)
   #:use-module (guix gexp)
+  #:use-module (guix monads)
+  #:use-module (guix store)
   #:use-module (guix packages)
   #:use-module (guix utils)
   #:use-module (nonguix build-system binary)
@@ -40,6 +43,8 @@
   #:use-module (gnu packages bash)
   #:use-module (gnu packages compression)
   #:use-module (gnu packages cups)
+  #:use-module (gnu packages curl)
+  #:use-module (gnu packages guile)
   #:use-module (gnu packages databases)
   #:use-module (gnu packages fontutils)
   #:use-module (gnu packages freedesktop)
@@ -47,6 +52,7 @@
   #:use-module (gnu packages gl)
   #:use-module (gnu packages glib)
   #:use-module (gnu packages gnome)
+  #:use-module (gnu packages gnupg)
   #:use-module (gnu packages gtk)
   #:use-module (gnu packages kerberos)
   #:use-module (gnu packages linux)
@@ -60,18 +66,73 @@
   #:use-module (gnu packages xml)
   #:use-module (gnu packages xorg))
 
-(define %qq-version "3.2.32")
+;; Tencent's QQNTV2 CDN requires a short-lived URL from its public signing
+;; endpoint.  Like nixpkgs' fetchqq, resolve it inside a fixed-output build:
+;; evaluation stays offline and the downloaded archive must match HASH.
+(define* (qq-fetch url hash-algo hash #:optional name
+                   #:key (system (%current-system))
+                   (guile (default-guile)))
+  (mlet %store-monad ((guile (package->derivation (or guile (default-guile))
+                                                system #:graft? #f)))
+    (gexp->derivation
+     (or name (basename url))
+     (with-extensions (list guile-json-4)
+       (with-imported-modules '((guix build utils))
+         #~(begin
+             (use-modules (guix build utils) (json) (ice-9 textual-ports))
+             ;; nss-certs supplies individual PEM files, not a combined bundle.
+             (call-with-output-file "ca-bundle.crt"
+               (lambda (port)
+                 (for-each
+                  (lambda (file)
+                    (display (call-with-input-file file get-string-all) port)
+                    (newline port))
+                  (find-files #+(file-append nss-certs "/etc/ssl/certs")
+                              "\\.pem$"))))
+             (setenv "CURL_CA_BUNDLE" (string-append (getcwd) "/ca-bundle.crt"))
+             (invoke #+(file-append curl "/bin/curl")
+                     "--fail" "--silent" "--show-error" "--retry" "3"
+                     "--connect-timeout" "30"
+                     "--request" "POST"
+                     "https://im.qq.com/http2rpc/gotrpc/noauth/trpc.qqntv2.urlsign.UrlSign/GetSign"
+                     "--header" "Content-Type: application/json"
+                     "--header"
+                     "x-oidb: {\"uint32_command\":\"0x9b8e\",\"uint32_service_type\":1}"
+                     "--data" (scm->json-string `(("url" . ,#$url)))
+                     "--output" "response.json")
+             (let* ((response (call-with-input-file "response.json" json->scm))
+                    (data (assoc-ref response "data"))
+                    (signed-url (and (list? data) (assoc-ref data "url"))))
+               (unless (and (string? signed-url)
+                            (string-prefix? "https://" signed-url))
+                 (error "Tencent GetSign did not return an HTTPS download URL"))
+               (invoke #+(file-append curl "/bin/curl")
+                       "--fail" "--location" "--retry" "3"
+                       "--connect-timeout" "30"
+                       "--output" #$output signed-url)))))
+     #:system system
+     #:guile-for-build guile
+     #:hash-algo hash-algo
+     #:hash hash
+     #:recursive? #f
+     #:graft? #f
+     #:local-build? #t
+     #:leaked-env-vars '("http_proxy" "https_proxy" "no_proxy"
+                         "HTTP_PROXY" "HTTPS_PROXY" "NO_PROXY"))))
+
+(define %qq-version "3.2.35")
 
 ;;; 上游 .deb 里 opt/QQ/resources/app/package.json 的 version 字段。
 ;;; QQ 会拿它和 ~/.config/QQ/versions/config.json 比对，不一致就尝试自动更新；
 ;;; 写上同样的版本号可以让它安静下来。
-(define %qq-internal-version "3.2.32-52194")
+(define %qq-internal-version "3.2.35-54395")
 
 (define %qq-inputs
   ;; 依赖表参考 nonguix 的 chromium-binary-build-system 自带的 Electron 依赖，
   ;; 再加上实际 readelf 扫出来的这几个：
   ;;   gnutls/nettle/gmp ← 自带的 avsdk/librtmp.so
   ;;   libssh2          ← 顶掉上游自带的 libssh2.so.1
+  ;;   libgcrypt        ← avsdk/bugly 中另一个自带的 libssh2.so.1
   ;;   libappindicator/libnotify ← 托盘图标（运行时 dlopen）
   ;;   gsettings-desktop-schemas ← GTK 设置
   (list alsa-lib
@@ -96,6 +157,7 @@
         librsvg
         libsecret
         libglvnd
+        libgcrypt
         libssh2
         libx11
         libxcb
@@ -134,13 +196,13 @@
     (name "qq")
     (version %qq-version)
     (source (origin
-              (method url-fetch)
+              (method qq-fetch)
               (uri (string-append
-                    "https://qqdl.gtimg.cn/qqfile/QQNT/9.9.33/release/3f89efc5/"
-                    "QQ_3.2.32_260812_amd64_01.deb"))
+                    "https://qqdl.gtimg.cn/qqfile/QQNTV2/9.9.37/release/816b3c79/"
+                    "QQ_3.2.35_261103_amd64_01.deb"))
               (sha256
                (base32
-                "1s5hsw9nx8d0ljbpwxs5sj782ac1d27k157ip4g0c9bj764xv1fh"))))
+                "1b7randvyfmwjg2sz53ina17flf9k0v42c3il9nx3fvs69i3iq3x"))))
     (build-system binary-build-system)
     (arguments
      (list #:modules '((ch0r0ng build qq)

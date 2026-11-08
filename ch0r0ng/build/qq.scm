@@ -14,6 +14,7 @@
 
 (define-module (ch0r0ng build qq)
   #:use-module (guix build utils)
+  #:use-module (guix build gremlin)
   #:use-module (srfi srfi-1)
   #:export (install-qq
             patch-elf
@@ -37,8 +38,8 @@
     (copy-recursively "opt" (string-append out "/opt"))
     (copy-recursively "usr/share" (string-append out "/share"))
 
-    ;; 上游自带的 libssh2 在 Guix 上不能用（链的是它自带的 openssl 1.1），
-    ;; 删掉，改用系统那份（在 RPATH / LD_LIBRARY_PATH 里）。
+    ;; 与 nixpkgs 一致，移除应用根目录自带的 libssh2，使用 Guix 那份
+    ;; （通过 RPATH / LD_LIBRARY_PATH 查找）。
     (delete-file (string-append qq "/resources/app/libssh2.so.1"))
 
     ;; 桌面文件里全是 FHS 绝对路径，改成 store 里的。
@@ -105,7 +106,10 @@ nixpkgs 的 autoPatchelfHook 也会在包内部找依赖库并把对应目录写
      (lambda (file)
        (when (has-interpreter? file)
          (invoke "patchelf" "--set-interpreter" ld.so file))
-       (invoke "patchelf" "--set-rpath" rpath file))
+       (invoke "patchelf" "--set-rpath" rpath file)
+       ;; The standard phase checks bin/lib, but QQ's ELF files live in opt/QQ.
+       (unless (validate-needed-in-runpath file)
+         (error "QQ bundled ELF has unresolved dependencies" file)))
      ;; 跳过软链：打包时我们会建 libnotify.so 之类指向 store 的软链，
      ;; 跟着它去 patch 会改到只读的 store 文件（EROFS）。
      (find-files out

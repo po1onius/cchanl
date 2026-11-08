@@ -54,7 +54,7 @@ guix install -L /path/to/cchanl ghostty
 | `dae-bin` | dae 的预编译包，提供基于 eBPF 的透明代理程序，当前只支持 `x86_64-linux`。 |
 | `ghostty` | Ghostty GPU 加速终端，使用 GTK4/libadwaita，构建时离线填充 Zig 依赖缓存。 |
 | `niri-git` | 从固定 Git commit 构建的 niri 主线版本，包含尚未进入稳定版的 PipeWire/SHM 屏幕采集回退。它属于预发布包，构建需要下载并处理大量 Rust crate。 |
-| `qq` | 腾讯 QQ Linux 官方 `.deb` 二进制包，当前版本为 `3.2.32`，只支持 `x86_64-linux`。包装脚本会设置运行时库路径并关闭无法写入 `/gnu/store` 的自动更新。 |
+| `qq` | 腾讯 QQ Linux 官方 `.deb` 二进制包，当前版本为 `3.2.35`，只支持 `x86_64-linux`。包装脚本会设置运行时库路径并关闭无法写入 `/gnu/store` 的自动更新。 |
 | `sddm-astronaut-theme` | SDDM Astronaut Qt6 主题，当前版本为 `1.4`。需要 Qt6 版 SDDM，并建议把 `qtmultimedia` 放入系统 profile。 |
 | `wemeet` | 腾讯会议 Linux 官方 `.deb` 二进制包，提供 `wemeet` 和 `wemeet-xwayland` 两个启动器，当前只支持 `x86_64-linux`。包含针对 Guix、Wayland 和 PipeWire 的运行时修补。 |
 | `gcc-symlink` | 提供从 `cc` 到 `gcc` 的符号链接，适合需要 `cc` 命令的构建环境。 |
