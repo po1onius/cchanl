@@ -1,7 +1,14 @@
 ;;; Microsoft Visual Studio Code, repackaged from the official stable release.
 (define-module (ch0r0ng packages vscode)
   #:use-module (gnu packages base)
+  #:use-module (gnu packages bash)
+  #:use-module (gnu packages compression)
+  #:use-module (gnu packages crypto)
+  #:use-module (gnu packages gcc)
   #:use-module (gnu packages gtk)
+  #:use-module (gnu packages tls)
+  #:use-module (gnu packages virtualization)
+  #:use-module (guix build-system trivial)
   #:use-module (guix download)
   #:use-module (guix gexp)
   #:use-module (guix packages)
@@ -133,3 +140,105 @@ an integrated terminal and extensions.  This package uses Microsoft's official
 stable binary distribution, including access to the Visual Studio Marketplace.
 It provides the code command and desktop and vscode:// URL handlers.")
     (license (license:nonfree "https://code.visualstudio.com/license"))))
+
+;; A small FHS runtime for extension-provided language servers and debuggers.
+;; Keep the ordinary glibc: LD_LIBRARY_PATH below supplies the union's libraries
+;; without rebuilding a separate libc just to change its ld.so.cache location.
+(define %vscode-fhs-runtime
+  (computed-file
+   "vscode-fhs-runtime"
+   (with-imported-modules '((guix build union))
+     #~(begin
+         (use-modules (guix build union))
+         (union-build #$output
+                      (list #$glibc #$gcc:lib
+                            #$bash-minimal #$coreutils #$findutils
+                            #$grep #$sed #$tar #$gzip
+                            #$zlib #$openssl #$libxcrypt))))))
+
+(define %vscode-fhs-run
+  (program-file
+   "vscode-fhs-run"
+   #~(begin
+       (use-modules (ice-9 ftw) (srfi srfi-1))
+       ;; Mirror the host's top-level entries into an initially empty mount
+       ;; namespace.  Never bind / itself: creating FHS paths below a writable
+       ;; root bind would create directories on the host as well.
+       (define shared
+         (append-map
+          (lambda (entry)
+            (let ((path (string-append "/" entry)))
+              (if (eq? 'symlink (stat:type (lstat path)))
+                  (list "--symlink" (readlink path) path)
+                  (list (if (string=? entry "dev") "--dev-bind" "--bind")
+                        path path))))
+          (scandir "/"
+                   (lambda (entry)
+                     (not (member entry
+                                  '("." ".." "usr" "bin" "sbin"
+                                    "lib" "lib64")))))))
+       (define args (cdr (command-line)))
+       (when (null? args)
+         (display "Usage: vscode-fhs-run COMMAND [ARG...]\n" (current-error-port))
+         (exit 2))
+       ;; Append rather than replace the caller's toolchain and library paths.
+       (define (append-path variable suffix)
+         (let ((value (getenv variable)))
+           (setenv variable
+                   (if (and value (not (string-null? value)))
+                       (string-append value ":" suffix)
+                       suffix))))
+       (append-path "PATH" "/usr/bin:/usr/sbin")
+       (append-path "LD_LIBRARY_PATH" "/usr/lib")
+       (apply execl #$(file-append bubblewrap "/bin/bwrap") "bwrap"
+              (append shared
+                      (list "--ro-bind" #$%vscode-fhs-runtime "/usr"
+                            "--symlink" "usr/bin" "/bin"
+                            "--symlink" "usr/sbin" "/sbin"
+                            "--symlink" "usr/lib" "/lib"
+                            "--symlink" "usr/lib" "/lib64"
+                            "--chdir" (getcwd) "--")
+                      args)))))
+
+(define-public vscode-fhs
+  (package
+    (inherit vscode)
+    (name "vscode-fhs")
+    (source #f)
+    (build-system trivial-build-system)
+    (arguments
+     (list
+      #:modules '((guix build utils))
+      #:builder
+      #~(begin
+          (use-modules (guix build utils))
+          (let ((bin (string-append #$output "/bin"))
+                (share (string-append #$output "/share")))
+            (mkdir-p bin)
+            (symlink #$%vscode-fhs-run (string-append bin "/vscode-fhs-run"))
+            (call-with-output-file (string-append bin "/code")
+              (lambda (port)
+                (format port "#!~a~%exec ~a ~a \"$@\"~%"
+                        #$(file-append bash-minimal "/bin/bash")
+                        #$%vscode-fhs-run #$(file-append vscode "/bin/code"))))
+            (chmod (string-append bin "/code") #o755)
+            (copy-recursively #$(file-append vscode "/share/applications")
+                              (string-append share "/applications"))
+            ;; Both the menu entry and vscode:// URLs must enter the FHS view.
+            (substitute* (find-files (string-append share "/applications")
+                                     "\\.desktop$")
+              ((#$(file-append vscode "/bin/code"))
+               (string-append bin "/code")))
+            (symlink #$(file-append vscode "/share/icons")
+                     (string-append share "/icons"))))))
+    (native-inputs '())
+    (inputs (list vscode bubblewrap bash-minimal))
+    (synopsis "Visual Studio Code with an FHS runtime for extensions")
+    (description
+     "This package launches Visual Studio Code in a mount namespace with
+standard Linux loader paths, common command-line utilities, and C, C++, OpenSSL
+and zlib runtime libraries.  Extension-provided binaries can use these paths
+without modifying the extensions.  The host home, projects, devices, network
+and environment remain accessible.  This is a compatibility environment, not
+a security sandbox.  The vscode-fhs-run command runs other tools in the same
+environment.  Language toolchains still need to be installed separately.")))

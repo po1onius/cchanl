@@ -51,6 +51,8 @@ guix install -L /path/to/cchanl ghostty
 | `codex` | 从固定版本源码构建的 OpenAI Codex CLI，同时包含 Code Mode、voice host 和 Codex 使用的 bubblewrap。支持 `x86_64-linux` 和 `aarch64-linux`。 |
 | `codex-bin` | OpenAI Codex CLI 的官方预编译发行包，包含 Code Mode host、exec server、voice runtime、ripgrep 和 bubblewrap 等运行时文件。支持 `x86_64-linux` 和 `aarch64-linux`。 |
 | `rust-toolchain` | Rust 官方二进制工具链，固定稳定版清单；同时提供 stable/beta/nightly、项目工具链文件、组件与交叉目标选择。见 [Rust 工具链](docs/rustup.md)。 |
+| `vscode` | 微软官方 VS Code 稳定版二进制包，提供 `code` 命令、桌面入口和 `vscode://` URL 处理器，保留官方扩展市场。支持 `x86_64-linux` 和 `aarch64-linux`。 |
+| `vscode-fhs` | 为 VS Code 插件提供标准 Linux 加载器路径及常用运行库，适合直接使用 rust-analyzer 等插件自带的二进制。提供 `code` 和诊断命令 `vscode-fhs-run`。 |
 | `dae-bin` | dae 的预编译包，提供基于 eBPF 的透明代理程序，当前只支持 `x86_64-linux`。 |
 | `ghostty` | Ghostty GPU 加速终端，使用 GTK4/libadwaita，构建时离线填充 Zig 依赖缓存。 |
 | `niri-git` | 从固定 Git commit 构建的 niri 主线版本，包含尚未进入稳定版的 PipeWire/SHM 屏幕采集回退。它属于预发布包，构建需要下载并处理大量 Rust crate。 |
@@ -62,6 +64,8 @@ guix install -L /path/to/cchanl ghostty
 
 常用包的差异如下：
 
+- `vscode` 使用微软非自由许可的官方发行包。安装：`guix install -L . vscode`，启动：`code`；在 Scheme 配置中导入 `(ch0r0ng packages vscode)`。版本由 Guix 管理，升级时更新 channel 并执行 `guix upgrade vscode`。Wayland 会话可使用 `code --ozone-platform=wayland`。
+- `vscode-fhs` 使用 bubblewrap 为 VS Code 及其子进程提供 `/lib64`、`/lib`、`/usr/bin` 等路径，以及 glibc、GCC 运行库、OpenSSL、zlib 和 libxcrypt。它沿用已有设置和插件，不需要设置 `rust-analyzer.server.path`。已安装普通版时，用 `guix package -L . -r vscode -i vscode-fhs` 替换（Guix Home 用户在配置中将 `vscode` 换成 `vscode-fhs`），然后完全退出已有 VS Code 再运行 `code`，避免连接到旧进程。此环境保留宿主目录的读写权限、网络和桌面会话，不是安全沙箱；需要内核允许非特权用户命名空间。仅支持本机架构，不能保证运行所有插件，Rust/Cargo 等语言工具链仍需另行安装。可用 `vscode-fhs-run /path/to/program --version` 测试插件程序。
 - `codex` 是源码构建版本，构建时间较长，但依赖和构建过程由 Guix 管理；`codex-bin` 使用上游预编译发行包，安装更快。
 - `niri-git` 跟随固定的 niri 主线 commit，不等同于 Guix 或 Rosenthal 中的稳定 `niri`。升级它时需要同时更新 niri、smithay 以及对应的 crate 输入表。
 - `wemeet` 在 Wayland 会话中优先使用 `wemeet`；如果某些桌面环境兼容性较差，可以尝试 `wemeet-xwayland`。关于 niri 下屏幕共享的 PipeWire、SHM 和格式协商细节，见 [`docs/wemeet-screenshare.md`](docs/wemeet-screenshare.md)。
