@@ -18,6 +18,12 @@
   #:use-module (guix gexp)
   #:use-module (guix packages)
   #:use-module (guix utils)
+  #:use-module (guix build utils)
+  #:use-module (ice-9 regex)
+  #:use-module (ice-9 string-fun)
+  #:use-module (ice-9 textual-ports)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-13)
   #:use-module (nongnu packages chrome)
   #:export (%chrome-wayland-flags
             chrome-wayland
@@ -30,7 +36,10 @@
   ;;
   ;; Add e.g. "--enable-wayland-ime --wayland-text-input-version=3" here if
   ;; the input method misbehaves on Wayland.
-  "--ozone-platform=wayland")
+  (string-append
+   "--ozone-platform=wayland"
+   " --enable-features=AcceleratedVideoDecodeLinuxGL,"
+   "AcceleratedVideoDecodeLinuxZeroCopyGL"))
 
 (define (chrome-launcher-name package)
   "Return the name of the launcher installed by nonguix' PACKAGE under bin/."
@@ -57,11 +66,44 @@ forced to Wayland."
             ;; needs to be pushed one layer down.
             (add-after 'install-wrapper 'install-wayland-wrapper
               (lambda _
+                ;; These modules are needed inside the build environment;
+                ;; module-level imports are not visible in the gexp phase.
+                (use-modules (guix build utils)
+                             (ice-9 regex)
+                             (ice-9 string-fun)
+                             (ice-9 textual-ports)
+                             (srfi srfi-1)
+                             (srfi srfi-13))
                 (let* ((bin (string-append #$output "/bin"))
                        (launcher #$(chrome-launcher-name base))
                        (exe (string-append bin "/" launcher))
                        (wrapped (string-append bin "/." launcher "-wrapped")))
                   (rename-file exe wrapped)
+
+                  ;; Guix 的 libglvnd 没有 Mesa 的 EGL vendor 配置，而 Mesa
+                  ;; 提供的是单体 libEGL；nonguix 的 launcher 却把 libglvnd
+                  ;; 放在 Mesa 前面，Chrome 的 ANGLE 因此报
+                  ;; "Failed to get system egl display"。
+                  ;; 把 Mesa 的 lib 目录移到 LD_LIBRARY_PATH 最前面，
+                  ;; 让 libEGL.so.1 直接解析到 Mesa。
+                  (let* ((text (call-with-input-file wrapped get-string-all))
+                         (m (string-match "LD_LIBRARY_PATH=\"([^\"]*)\"" text))
+                         (dirs (and m
+                                    (string-split (match:substring m 1) #\:)))
+                         (mesa (and dirs
+                                    (find (lambda (dir)
+                                            (and (string-contains dir "mesa-")
+                                                 (file-exists?
+                                                  (string-append dir "/libEGL.so.1"))))
+                                          dirs))))
+                    (unless mesa
+                      (error "chrome-wayland: no Mesa libEGL directory in Chrome's LD_LIBRARY_PATH"))
+                    (substitute* wrapped
+                      (("LD_LIBRARY_PATH=\"[^\"]*\"")
+                       (string-append "LD_LIBRARY_PATH=\""
+                                      (string-join (cons mesa (delete mesa dirs)) ":")
+                                      "\""))))
+
                   (call-with-output-file exe
                     (lambda (port)
                       (format port
