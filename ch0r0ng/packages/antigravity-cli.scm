@@ -26,12 +26,12 @@
   #:use-module (nonguix licenses)
   #:export (antigravity-cli))
 
-(define %antigravity-cli-build-id "6386224290725888")
+(define %antigravity-cli-build-id "4821414830800896")
 
 (define-public antigravity-cli
   (package
     (name "antigravity-cli")
-    (version "1.5.18")
+    (version "1.5.19")
     (source
      (origin
        (method url-fetch)
@@ -46,8 +46,8 @@
        (sha256
         (base32
          (if (string-prefix? "aarch64" (%current-system))
-             "03dbjsvjrvrg30x2d03nl4flcrmq0gwn52srfydv580vr6x9lycp"
-             "1bfm4g5nq0418qxbj7i6jlbp8qjdvyw1sm7dfanbbxcwxlihg5m4")))))
+             "1i291dj9mjy1sfwznl7k4p0s1z2pb23f6a9xv2gb8h0dbgs6ycda"
+             "145fdplh4x7ayhyz3cfhjaj1mc6pp981ypyzw7a8c27v0ykll6lp")))))
     (build-system copy-build-system)
     (arguments
      (list
